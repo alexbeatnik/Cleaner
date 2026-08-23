@@ -1,0 +1,11 @@
+# Build artifacts
+WindowsStalker.exe
+WindowsStalker.update.exe
+WindowsStalker.Tests.exe
+app.ico
+*.pdb
+
+# Local user state
+settings.ini
+clean.log
+backups/
