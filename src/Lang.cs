@@ -236,6 +236,13 @@ namespace WindowsStalker
             A("apps.noUninstaller", "This entry has no uninstall command registered.",
                                     "Для цього запису не зареєстровано команду видалення.");
 
+            // Activity-log lines. These land in clean.log AND in the dashboard's
+            // activity card, so they are user-visible text like any other.
+            A("log.startupEnabled", "Enabled at sign-in: {0}", "Увімкнено в автозапуску: {0}");
+            A("log.startupDisabled", "Disabled at sign-in: {0}", "Вимкнено в автозапуску: {0}");
+            A("log.startupRemoved", "Removed startup entry: {0}", "Видалено запис автозапуску: {0}");
+            A("log.uninstallStarted", "Started the uninstaller for {0}", "Запущено видалення {0}");
+
             // ---------- space ----------
             A("card.space", "Large files and duplicates", "Великі файли та дублікати");
             A("space.intro", "Searches a folder you choose. Deleted items go to the Recycle Bin.",

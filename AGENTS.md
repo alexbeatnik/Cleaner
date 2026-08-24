@@ -2,7 +2,7 @@
 
 A WinForms disk cleaner / system tune-up tool for Windows: junk files, registry
 residue, startup entries, installed programs, large files and duplicates. One
-~235 KB portable exe, **zero dependencies, zero toolchains**: it builds with the
+~255 KB portable exe, **zero dependencies, zero toolchains**: it builds with the
 `csc.exe` compiler that ships inside Windows (.NET Framework 4.8). Keep it that
 way. Licensed under Apache 2.0 (`LICENSE`).
 
@@ -135,6 +135,14 @@ Each cost a debugging round; do not reintroduce them.
   happens and the control keeps painting the old language. `NavTab.FitWidth` and
   `Toggle.FitWidth` both call `Invalidate()` for exactly this reason
   ("Space"/"Місце" is the pair that found it).
+- **The busy chrome is counted, not flagged.** Three background jobs can be in
+  flight at once — an analysis, a registry scan and a space scan, since the
+  dashboard tiles start the last two from wherever the user happens to be. With
+  a plain `busy` bool the first job to finish re-enabled every button and hid
+  every Stop button while the others were still walking the disk, leaving work
+  running that nothing on screen could call off. `BeginBusy`/`EndBusy` keep a
+  `busyDepth`; a worker that finds itself superseded still calls `EndBusy(null)`
+  so the count comes back without stamping over the newer job's status line.
 - **Letter-spacing is measured per string, not per character.**
   `TextRenderer.MeasureText` adds its own padding once per call, so measuring a
   run a character at a time charges that padding to every character and triples
@@ -195,7 +203,10 @@ Follow the matching rule whenever a change touches one of these areas:
   delete system files is indistinguishable from malware to a heuristic scanner,
   and this app already looks unusual for writing under `%LocalAppData%`. The
   helper reports failures through its exit code and the UI must not claim
-  success it did not get. The single unavoidable child shell is the detached
+  success it did not get — which is why `ElevatedJob.Parse` counts the lines it
+  refused and `Run` folds that count into the exit code: a job whose
+  instructions were thrown away was not carried out, and exit code 0 means
+  "all of it happened". The single unavoidable child shell is the detached
   `cmd /c rmdir` in uninstall — the exe cannot delete itself.
 - **`cancellable-work`** — every background scan takes a `CancelFlag` and is
   reachable from a Stop button on the page that started it (`BeginBusy`/
@@ -206,7 +217,9 @@ Follow the matching rule whenever a change touches one of these areas:
   uninterruptible call — `Util.HashFile` therefore reads in 64 KB blocks and
   takes the flag. A cancelled run must also discard its partial results rather
   than display them (`BuildDuplicateRows` returns early, and `StartSpaceScan`
-  only fills the list when the flag is clear).
+  only fills the list when the flag is clear). Every `BeginBusy` owes exactly
+  one `EndBusy` on every path out of its worker, including the superseded one —
+  see the busy-chrome trap above.
 - **`self-update`** — `MainForm.Updates.cs` checks the GitHub Releases API once
   per launch and once a day after that, and swaps the exe by handing a detached
   `cmd.exe` the move-and-relaunch (a running exe cannot overwrite itself). Two

@@ -263,7 +263,8 @@ namespace WindowsStalker
                     key.SetValue(valueName, ApprovedBlob(target), RegistryValueKind.Binary);
                 }
                 entry.Enabled = target;
-                LogLine((target ? "Enabled" : "Disabled") + " startup: " + entry.Name);
+                LogLine(string.Format(
+                    Lang.T(target ? "log.startupEnabled" : "log.startupDisabled"), entry.Name));
                 RefreshStartupTexts();
             }
             catch (Exception ex)
@@ -306,7 +307,7 @@ namespace WindowsStalker
                         @"Software\Microsoft\Windows\CurrentVersion\Run", true))
                         if (key != null) key.DeleteValue(entry.Name, false);
                 }
-                LogLine("Removed startup entry: " + entry.Name);
+                LogLine(string.Format(Lang.T("log.startupRemoved"), entry.Name));
                 RefreshStartup();
             }
             catch (Exception ex)

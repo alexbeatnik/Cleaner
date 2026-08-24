@@ -149,5 +149,48 @@ namespace WindowsStalker.Tests
                 Assert.False(File.Exists(path), "the job file is removed as it is read");
             }
         }
+
+        // The exit code is the ONLY thing the normal instance has to go on, and it
+        // reads zero as "every requested operation was carried out". A line the
+        // parser refused was not carried out, so it has to show up there — without
+        // this a tampered or truncated job file is reported to the user as a clean
+        // success.
+        public static void TestRefusedLinesAreCountedAsFailures()
+        {
+            using (var dir = new TempDir())
+            {
+                string path = dir.File("job.txt");
+                File.WriteAllText(path, Job(
+                    @"DEL|C:\",                          // a drive root
+                    "nonsense",                          // not an instruction at all
+                    @"REGKEY|HKEY_USERS|Software\X\Y")); // a hive the app never touches
+                Assert.Equal(3, ElevatedJob.Run(path),
+                    "three refused instructions, three failures — not a silent success");
+            }
+        }
+
+        public static void TestAFileThatIsNotOursIsAllFailures()
+        {
+            using (var dir = new TempDir())
+            {
+                string path = dir.File("job.txt");
+                File.WriteAllText(path, "# something else" + Environment.NewLine
+                    + @"DEL|C:\Windows\Temp\x" + Environment.NewLine);
+                Assert.Equal(1, ElevatedJob.Run(path),
+                    "a file with the wrong header executes nothing, and says so");
+            }
+        }
+
+        public static void TestAGoodJobStillReportsSuccess()
+        {
+            using (var dir = new TempDir())
+            {
+                string path = dir.File("job.txt");
+                File.WriteAllText(path, Job("# a note", "",
+                    @"DEL|C:\Windows\Temp\wincleaner-absent.tmp"));
+                Assert.Equal(0, ElevatedJob.Run(path),
+                    "comments and blanks are not instructions, and the one real line worked");
+            }
+        }
     }
 }

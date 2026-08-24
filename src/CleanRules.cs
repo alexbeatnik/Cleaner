@@ -238,7 +238,10 @@ namespace WindowsStalker
             history.Id = "br.firefox.history";
             history.GroupKey = G; history.NameKey = "rule.browserHistory"; history.NameArg = "Firefox";
             history.Risky = true; history.Kind = RuleKind.Glob;
-            history.Masks = new string[] { "places.sqlite-wal", "places.sqlite-shm", "sessionstore-backups" };
+            // Files only: a Glob rule runs Directory.GetFiles, so a folder name
+            // among the masks (sessionstore-backups sat here) never matched
+            // anything and only made the rule look as if it did more than it does.
+            history.Masks = new string[] { "places.sqlite-wal", "places.sqlite-shm" };
             history.Processes = new string[] { "firefox" };
             foreach (string p in SubDirectories(roamProfiles)) AddRootIfExists(history, p);
             Add(rules, history);

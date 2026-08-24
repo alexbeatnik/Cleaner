@@ -66,7 +66,8 @@ namespace WindowsStalker
 
                 OnUi(delegate
                 {
-                    if (regCancel != cancel) return; // a newer scan took over
+                    // A newer scan took over; give the busy count back all the same
+                    if (regCancel != cancel) { EndBusy(null); return; }
                     regScanRunning = false;
                     regIssues.Clear();
                     if (!cancel.Cancelled) regIssues.AddRange(found);

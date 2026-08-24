@@ -131,12 +131,9 @@ namespace WindowsStalker
                 buttons.Controls.Add(updates);
 
                 dlg.Controls.Add(buttons);
-                dlg.CancelButton = null; // ModernButton is not an IButtonControl
-                dlg.KeyPreview = true;
-                dlg.KeyDown += delegate(object s, KeyEventArgs e)
-                {
-                    if (e.KeyCode == Keys.Escape) dlg.Close();
-                };
+                // ModernButton is an IButtonControl, so CancelButton works here
+                // and routes Escape through the same handler the button uses.
+                dlg.CancelButton = close;
                 dlg.ShowDialog(this);
             }
         }

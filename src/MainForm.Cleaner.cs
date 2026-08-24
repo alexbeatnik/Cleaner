@@ -117,8 +117,9 @@ namespace WindowsStalker
                     ? string.Format(Lang.T("clean.found"), Util.FormatSize(bytes), Util.FormatCount(scan.SelectedFiles))
                     : Lang.T("clean.nothing");
             cleanSummary.ForeColor = bytes > 0 ? Theme.Text : Theme.Muted;
-            if (btnClean != null) btnClean.Enabled = bytes > 0 && !cleanRunning && !analyzeRunning;
-            if (dashClean != null) dashClean.Enabled = btnClean.Enabled;
+            bool canClean = bytes > 0 && !cleanRunning && !analyzeRunning && busyDepth == 0;
+            if (btnClean != null) btnClean.Enabled = canClean;
+            if (dashClean != null) dashClean.Enabled = canClean;
             UpdateDashboard();
         }
 
@@ -181,7 +182,9 @@ namespace WindowsStalker
             session.Finished = !session.Cancelled;
             OnUi(delegate
             {
-                if (scan != session) return;
+                // Superseded: the newer analysis owns the chrome now, but this run
+                // still has to hand back the busy count it took in StartAnalyze.
+                if (scan != session) { EndBusy(null); return; }
                 analyzeRunning = false;
                 RefreshCleanList();
                 UpdateDashboard();

@@ -92,7 +92,7 @@ namespace WindowsStalker
                 string summaryCopy = summary;
                 OnUi(delegate
                 {
-                    if (spaceCancel != cancel) return;
+                    if (spaceCancel != cancel) { EndBusy(null); return; } // superseded
                     spaceScanRunning = false;
                     if (!cancel.Cancelled) FillSpaceList(rows);
                     EndBusy(cancel.Cancelled ? Lang.T("common.cancelled") : summaryCopy);

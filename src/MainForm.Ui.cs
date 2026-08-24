@@ -1129,40 +1129,57 @@ namespace WindowsStalker
 
         // ---------- progress plumbing shared by every page ----------
 
+        // How many background jobs are currently showing the busy chrome. Counted,
+        // not a bool: an analysis, a registry scan and a space scan can overlap
+        // (the dashboard tiles start the last two from any state), and with a
+        // plain flag the first job to finish re-enabled every button and hid
+        // every Stop button while the others were still walking the disk —
+        // leaving work running with nothing on screen able to call it off.
+        int busyDepth;
+
         // Every Stop button in the app is shown from here, so whichever page the
         // user is looking at when a scan starts has one within reach.
         void BeginBusy(string status)
         {
+            busyDepth++;
             SetStatus(status);
             progress.Start();
-            btnAnalyze.Enabled = false;
-            btnClean.Enabled = false;
-            dashClean.Enabled = false;
-            btnRegScan.Enabled = false;
-            btnSpaceScanBig.Enabled = false;
-            btnSpaceScanDupes.Enabled = false;
-            btnStopScan.Visible = true;
+            SetBusyChrome(true);
+        }
+
+        // status == null means "give the count back but leave the status line
+        // alone" — what a superseded worker does, so it cannot stamp over the
+        // status of the run that replaced it.
+        void EndBusy(string status)
+        {
+            if (busyDepth > 0) busyDepth--;
+            if (status != null) SetStatus(status);
+            if (busyDepth > 0) return; // another job is still running: keep the Stop buttons
+            progress.Stop();
+            SetBusyChrome(false);
+            btnClean.Enabled = scan.Finished && scan.SelectedBytes > 0;
+            dashClean.Enabled = btnClean.Enabled;
+        }
+
+        void SetBusyChrome(bool busy)
+        {
+            btnAnalyze.Enabled = !busy;
+            btnRegScan.Enabled = !busy;
+            btnSpaceScanBig.Enabled = !busy;
+            btnSpaceScanDupes.Enabled = !busy;
+            // The dashboard tiles are the other way into a scan, and they were the
+            // only starters left enabled while one was already running.
+            tileRegistry.Enabled = !busy;
+            tileBig.Enabled = !busy;
+            tileDupes.Enabled = !busy;
+            if (busy) { btnClean.Enabled = false; dashClean.Enabled = false; }
+            btnStopScan.Visible = busy;
             // The dashboard and space Stop buttons share their cell with the
             // action they replace, and a control added later sits *under* the one
             // added before it — leaving the tile visible would have hidden Stop
             // behind it. Hiding what it covers is what makes the swap real.
-            SwapStop(dashStop, true, dashAnalyze);
-            SwapStop(btnSpaceStop, true, btnSpaceScanBig, btnSpaceScanDupes);
-        }
-
-        void EndBusy(string status)
-        {
-            SetStatus(status);
-            progress.Stop();
-            btnAnalyze.Enabled = true;
-            btnRegScan.Enabled = true;
-            btnSpaceScanBig.Enabled = true;
-            btnSpaceScanDupes.Enabled = true;
-            btnStopScan.Visible = false;
-            SwapStop(dashStop, false, dashAnalyze);
-            SwapStop(btnSpaceStop, false, btnSpaceScanBig, btnSpaceScanDupes);
-            btnClean.Enabled = scan.Finished && scan.SelectedBytes > 0;
-            dashClean.Enabled = btnClean.Enabled;
+            SwapStop(dashStop, busy, dashAnalyze);
+            SwapStop(btnSpaceStop, busy, btnSpaceScanBig, btnSpaceScanDupes);
         }
 
         static void SwapStop(Control stop, bool busy, params Control[] covered)

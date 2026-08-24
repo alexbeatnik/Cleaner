@@ -241,5 +241,15 @@ ot\here.bin", 24, DateTime.UtcNow),
             Assert.True(shortened.Length <= 24, "and it actually got shorter: " + shortened);
             Assert.Equal(@"C:\x.txt", Util.ShortenPath(@"C:\x.txt", 20), "a short path is left alone");
         }
+
+        // A width narrower than the ellipsis itself used to run Substring off the
+        // end of the file name and throw — which is not something a fixed-width
+        // label should be able to do to a running scan's status line.
+        public static void TestShortenPathSurvivesAbsurdWidths()
+        {
+            for (int max = -2; max <= 14; max++)
+                Assert.True(Util.ShortenPath(@"C:\a\b\c\d\e\f\report.txt", max) != null,
+                    "never throws and never returns null, width " + max);
+        }
     }
 }

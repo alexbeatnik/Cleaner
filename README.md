@@ -1,7 +1,7 @@
 # WindowsStalker
 
 Disk cleanup and system tune-up for Windows, in the spirit of CCleaner and
-CleanMyMac — as **one ~235 KB portable executable with zero dependencies**.
+CleanMyMac — as **one ~255 KB portable executable with zero dependencies**.
 
 No installer required, no .NET to download, no NuGet packages, no toolchain:
 the whole thing is built by `csc.exe`, the C# compiler that already ships inside
@@ -62,9 +62,9 @@ A program whose job is deleting files has to be conservative, so:
   cache or an HKLM key is handed to a short-lived elevated helper that executes
   a job file and exits — no hidden script hosts, no long-running elevated UI.
 - **Every long scan can be called off.** A STOP button appears on whichever page
-  started the work, and the cancellation reaches inside the duplicate finder's
-  file hashing, so a multi-gigabyte file cannot hold the scan open after you
-  press it.
+  started the work, stays there until the *last* running job finishes, and the
+  cancellation reaches inside the duplicate finder's file hashing, so a
+  multi-gigabyte file cannot hold the scan open after you press it.
 
 ## Updates
 

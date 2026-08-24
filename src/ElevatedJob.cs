@@ -76,36 +76,54 @@ namespace WindowsStalker
         // reading this file is running as administrator.
         internal static List<JobOp> Parse(string content)
         {
+            int skipped;
+            return Parse(content, out skipped);
+        }
+
+        // skipped counts the instruction lines that were refused. Run adds it to
+        // the failure count, because a job whose lines were thrown away has NOT
+        // been carried out — and the caller reads exit code 0 as "everything done".
+        internal static List<JobOp> Parse(string content, out int skipped)
+        {
+            skipped = 0;
             var ops = new List<JobOp>();
             if (string.IsNullOrEmpty(content)) return ops;
             string[] lines = content.Replace("\r\n", "\n").Split('\n');
-            if (lines.Length == 0 || lines[0].Trim() != Header) return ops; // wrong file, do nothing
+            if (lines.Length == 0 || lines[0].Trim() != Header)
+            {
+                foreach (string other in lines)
+                {
+                    string t = other.Trim();
+                    if (t.Length > 0 && t[0] != '#') skipped++;
+                }
+                return ops; // wrong file, do nothing
+            }
             for (int i = 1; i < lines.Length; i++)
             {
                 string line = lines[i].Trim();
                 if (line.Length == 0 || line[0] == '#') continue;
                 string[] parts = line.Split('|');
-                if (parts.Length < 2) continue;
+                if (parts.Length < 2) { skipped++; continue; }
                 var op = new JobOp();
                 if (parts[0] == "DEL")
                 {
                     op.Kind = JobOpKind.Delete;
                     op.A = line.Substring(4); // paths may contain '|'? they cannot on Windows, but be exact
-                    if (op.A.Length == 0) continue;
+                    if (op.A.Length == 0) { skipped++; continue; }
                 }
                 else if (parts[0] == "REGVAL" && parts.Length >= 4)
                 {
                     op.Kind = JobOpKind.RegDeleteValue;
                     op.A = parts[1]; op.B = parts[2]; op.C = parts[3];
-                    if (op.C.Length == 0) continue; // a value job with no value is malformed
+                    if (op.C.Length == 0) { skipped++; continue; } // a value job with no value is malformed
                 }
                 else if (parts[0] == "REGKEY" && parts.Length >= 3)
                 {
                     op.Kind = JobOpKind.RegDeleteKey;
                     op.A = parts[1]; op.B = parts[2];
                 }
-                else continue;
-                if (!Validate(op)) continue;
+                else { skipped++; continue; }
+                if (!Validate(op)) { skipped++; continue; }
                 ops.Add(op);
             }
             return ops;
@@ -152,8 +170,10 @@ namespace WindowsStalker
             catch { return 1; }
             try { File.Delete(jobPath); } catch { } // single use, whatever happens next
 
-            int failed = 0;
-            foreach (JobOp op in Parse(content))
+            int skipped;
+            List<JobOp> ops = Parse(content, out skipped);
+            int failed = skipped; // a refused line is a failure, not a silent success
+            foreach (JobOp op in ops)
             {
                 try
                 {

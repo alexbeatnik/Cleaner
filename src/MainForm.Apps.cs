@@ -183,7 +183,7 @@ namespace WindowsStalker
                 var psi = new ProcessStartInfo(exe, arguments);
                 psi.UseShellExecute = true; // the uninstaller asks for elevation itself
                 Process.Start(psi);
-                LogLine("Started uninstaller: " + app.Name);
+                LogLine(string.Format(Lang.T("log.uninstallStarted"), app.Name));
             }
             catch (Exception ex)
             {

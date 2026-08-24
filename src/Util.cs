@@ -40,8 +40,12 @@ namespace WindowsStalker
         public static string ShortenPath(string path, int max)
         {
             if (string.IsNullOrEmpty(path) || path.Length <= max) return path ?? "";
+            if (max <= 3) return "...";
             string name = Path.GetFileName(path);
-            if (name.Length + 6 >= max) return "..." + name.Substring(Math.Max(0, name.Length - (max - 3)));
+            // Clamped at both ends: a max only a little wider than the ellipsis
+            // makes name.Length - (max - 3) point past the end of the name.
+            if (name.Length + 6 >= max)
+                return "..." + name.Substring(Math.Min(name.Length, Math.Max(0, name.Length - (max - 3))));
             int head = max - name.Length - 4;
             return path.Substring(0, Math.Max(3, head)) + "..." + Path.DirectorySeparatorChar + name;
         }

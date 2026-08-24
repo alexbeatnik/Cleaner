@@ -41,6 +41,9 @@ namespace WindowsStalker
         DateTime lastAppUpdateCheck; // persisted; MinValue = never checked
         bool checkingAppUpdate;      // a check or download is already in flight
         bool startupAppCheckDone;    // this launch already ran its one free check
+        // When the last unattended check was ATTEMPTED, as opposed to when one
+        // last succeeded. Not persisted: it only has to survive this session.
+        DateTime lastAppUpdateAttempt;
 
         // Pure, so the boundaries can be pinned by tests: the first check of a
         // launch always fires, after that the daily period applies, and a clock
@@ -84,7 +87,15 @@ namespace WindowsStalker
         {
             if (!autoUpdate || checkingAppUpdate || UpdateBusy) return;
             if (!AppUpdateDue(startupAppCheckDone, lastAppUpdateCheck, DateTime.Now, AppUpdateCheckHours)) return;
+            // A check that never reached GitHub leaves lastAppUpdateCheck alone —
+            // by design, so the status line does not claim a check that did not
+            // happen. Without the attempt stamp the line above then says "due"
+            // again on the very next timer tick, and an offline machine would ask
+            // the API every ten minutes instead of once a day.
+            if (startupAppCheckDone
+                && !AppUpdateDue(true, lastAppUpdateAttempt, DateTime.Now, AppUpdateCheckHours)) return;
             startupAppCheckDone = true; // set only when a check really starts
+            lastAppUpdateAttempt = DateTime.Now;
             StartAppUpdateCheck(false);
         }
 
@@ -95,6 +106,7 @@ namespace WindowsStalker
             if (checkingAppUpdate) return;
             if (UpdateBusy) { SetUpdateStatus(Lang.T("update.busy")); return; }
             startupAppCheckDone = true;
+            lastAppUpdateAttempt = DateTime.Now;
             StartAppUpdateCheck(true);
         }
 
