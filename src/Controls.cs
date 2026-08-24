@@ -230,7 +230,15 @@ namespace WindowsStalker
 
         public void SetActive(bool a) { Active = a; Invalidate(); }
 
-        void FitWidth() { Width = 42 + Theme.MeasureTracked(Text.ToUpperInvariant(), Font, Theme.Track); }
+        // Invalidate explicitly, not just via ResizeRedraw: this is a monospace
+        // UI, so a translated caption of the same length measures to the same
+        // width, the resize never happens, and the tab would keep painting the
+        // old language. "Space"/"Місце" is exactly that pair.
+        void FitWidth()
+        {
+            Width = 42 + Theme.MeasureTracked(Text.ToUpperInvariant(), Font, Theme.Track);
+            Invalidate();
+        }
         protected override void OnTextChanged(EventArgs e) { base.OnTextChanged(e); FitWidth(); }
         protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); FitWidth(); }
 

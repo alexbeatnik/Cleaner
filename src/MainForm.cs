@@ -100,13 +100,15 @@ namespace WindowsStalker
         DarkList spaceList;
         StatStrip spaceStrip;
         ModernButton btnSpaceScanBig, btnSpaceScanDupes, btnSpacePickFolder, btnSpaceDelete, btnSpaceOpen;
+        ModernButton btnSpaceStop;
         Label spaceSummary, spaceFolderLabel;
 
         // settings
         ModernButton btnLangEn, btnLangUk, btnInstall, btnOpenLog;
         ModernButton btnSchedOff, btnSchedDaily, btnSchedWeekly;
-        Toggle chkAutostart, chkConfirm, chkTrayClose;
-        Label installedBadge;
+        ModernButton btnAbout, btnCheckUpdate;
+        Toggle chkAutostart, chkConfirm, chkTrayClose, chkAutoUpdate;
+        Label installedBadge, updateStatus;
         Label[] setStatusCaps, setStatusVals;
 
         NotifyIcon tray;

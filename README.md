@@ -20,7 +20,7 @@ unless you tell it to clean something that genuinely needs them.
 | **Startup** | What runs when you sign in, and a switch to turn it off — through the same mechanism Task Manager uses, so the two agree |
 | **Apps** | Everything installed, with size and install date, and a shortcut to each program's own uninstaller |
 | **Space** | The largest files in a folder you choose, and byte-for-byte duplicates. Anything deleted here goes to the Recycle Bin |
-| **Settings** | Language, automatic weekly clean, autostart, and per-user install |
+| **Settings** | Language, automatic weekly clean, autostart, per-user install, and automatic updates |
 
 ## Build
 
@@ -61,6 +61,23 @@ A program whose job is deleting files has to be conservative, so:
 - **The app runs non-elevated.** Cleaning `C:\Windows\Temp`, the Windows Update
   cache or an HKLM key is handed to a short-lived elevated helper that executes
   a job file and exits — no hidden script hosts, no long-running elevated UI.
+- **Every long scan can be called off.** A STOP button appears on whichever page
+  started the work, and the cancellation reaches inside the duplicate finder's
+  file hashing, so a multi-gigabyte file cannot hold the scan open after you
+  press it.
+
+## Updates
+
+Once per launch and once a day after that, WindowsStalker asks the GitHub
+Releases API whether there is a newer tag. If there is, it downloads that
+release's `WindowsStalker.exe` into `%TEMP%`, and a detached `cmd.exe` helper
+waits for the app to exit, moves the new build over the old one and starts it
+again — back into the tray if that is where it was.
+
+It never interrupts anything: an analysis, a clean, a scan or an open dialog all
+defer the swap to the next check. The check is one small unauthenticated API
+request, it fails silently when the machine is offline, and Settings → About has
+both a switch to turn it off and a button to check on demand.
 
 ## Install
 
@@ -68,13 +85,14 @@ WindowsStalker runs fine straight from the folder you unzipped it into. On first
 start it offers to install itself for the current user instead
 (`%LocalAppData%\Programs\WindowsStalker`), which adds a Start-menu entry and lets
 it start with Windows. Either way no administrator rights are involved, and
-Settings → About uninstalls it again.
+Settings → Status uninstalls it again.
 
 ## Files it writes
 
 Next to the executable: `settings.ini` (preferences and which categories you
 ticked), `clean.log` (one line per action) and `backups\` (registry `.reg`
-backups). Nothing else, anywhere.
+backups). Nothing else, anywhere — a pending update is staged in `%TEMP%` and
+deleted again if it cannot be applied.
 
 ## License
 

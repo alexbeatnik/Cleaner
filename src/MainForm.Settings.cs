@@ -62,6 +62,8 @@ namespace WindowsStalker
                     else if (key == "schedmode") schedMode = ClampInt(value, 0, 2, schedMode);
                     else if (key == "confirm") confirmBeforeClean = value != "0";
                     else if (key == "traycl") closeToTray = value != "0";
+                    else if (key == "autoupdate") autoUpdate = value != "0";
+                    else if (key == "lastupdate") Util.TryParseTicks(value, out lastAppUpdateCheck);
                     else if (key == "autostartinit") autostartInitialized = value == "1";
                     else if (key == "modeasked") modeAsked = value == "1";
                     else if (key == "freedbytes") totalFreedBytes = ParseLong(value, 0);
@@ -99,6 +101,8 @@ namespace WindowsStalker
             sb.AppendLine("schedmode=" + schedMode.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("confirm=" + (confirmBeforeClean ? "1" : "0"));
             sb.AppendLine("traycl=" + (closeToTray ? "1" : "0"));
+            sb.AppendLine("autoupdate=" + (autoUpdate ? "1" : "0"));
+            sb.AppendLine("lastupdate=" + lastAppUpdateCheck.Ticks.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("autostartinit=" + (autostartInitialized ? "1" : "0"));
             sb.AppendLine("modeasked=" + (modeAsked ? "1" : "0"));
             sb.AppendLine("freedbytes=" + totalFreedBytes.ToString(CultureInfo.InvariantCulture));

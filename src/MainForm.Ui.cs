@@ -56,7 +56,7 @@ namespace WindowsStalker
 
             Shown += delegate
             {
-                if (startInTray) { Hide(); return; }
+                if (startInTray) { Hide(); MaybeCheckAppUpdate(); return; }
                 // The first normal start decides where the app lives — before any
                 // settings or logs are written, so they land in the right place.
                 if (!modeAsked && !IsInstalled)
@@ -69,6 +69,10 @@ namespace WindowsStalker
                             AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                         LaunchInstaller();
                 }
+                // Last, not first: the check would otherwise land while the
+                // question above still holds the window modal, and a modal dialog
+                // is one of the states an update is not allowed to interrupt.
+                MaybeCheckAppUpdate();
             };
         }
 
@@ -747,6 +751,18 @@ namespace WindowsStalker
             btnSpaceScanDupes.Font = Theme.UiBold(10f);
             card.Controls.Add(btnSpaceScanDupes);
 
+            // Covers both scan buttons while a scan runs. A duplicate search over
+            // a home folder is the longest job in the app, and this page had no way
+            // to call it off: the Stop buttons lived on the dashboard and the
+            // cleaner page, neither of which is where the user just pressed
+            // DUPLICATES. Spanning the pair rather than sitting beside them keeps
+            // it clear of the delete/open buttons at the other end of the row.
+            btnSpaceStop = CardBtn(Ico.StopIcon, Theme.Danger, Theme.DangerHot, Theme.OnAccent,
+                CardInsetX, y, 410, ButtonRowH, delegate { CancelWork(); });
+            btnSpaceStop.Font = Theme.UiBold(10f);
+            btnSpaceStop.Visible = false;
+            card.Controls.Add(btnSpaceStop);
+
             int right = ContentW - CardInsetX;
             btnSpaceOpen = CardBtn(Ico.FolderIcon, Theme.Subtle, Theme.CardLine, Theme.Text,
                 right - 200, y + 5, 200, 36, delegate { OpenSelectedSpace(); });
@@ -855,25 +871,56 @@ namespace WindowsStalker
             installedBadge = Lbl(20, 184, 200, 20, Theme.UiBold(9f), Theme.Good);
             installedBadge.BackColor = Color.Transparent;
             status.Controls.Add(installedBadge);
+
+            // Install/uninstall and the log belong with the mode readout above
+            // them rather than in the About card, which is now the updates card
+            // too. Full width, because the Ukrainian captions are half again as
+            // long as the English ones and a two-across row clips them.
+            btnInstall = Btn(Ico.Download, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
+                20, 214, 434, 38, delegate { InstallOrUninstall(); });
+            btnInstall.BackColor = Theme.Card;
+            status.Controls.Add(btnInstall);
+
+            btnOpenLog = Btn(Ico.FileIcon, Theme.Subtle, Theme.CardLine, Theme.Text,
+                20, 260, 434, 38, delegate { OpenLog(); });
+            btnOpenLog.BackColor = Theme.Card;
+            status.Controls.Add(btnOpenLog);
             page.Controls.Add(status);
 
-            // About
+            // About and updates
             var about = Card(524, 270, 476, 314);
             about.Name = "card.about";
-            var aboutText = Lbl(20, 48, 434, 96, Theme.Ui(8.75f), Theme.Muted);
+            var aboutText = Lbl(20, 48, 434, 76, Theme.Ui(8.75f), Theme.Muted);
             aboutText.Name = "about.text";
             aboutText.BackColor = Color.Transparent;
             about.Controls.Add(aboutText);
 
-            btnInstall = Btn(Ico.Download, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
-                20, 150, 250, 36, delegate { InstallOrUninstall(); });
-            btnInstall.BackColor = Theme.Card;
-            about.Controls.Add(btnInstall);
+            chkAutoUpdate = new Toggle("");
+            chkAutoUpdate.SetBounds(20, 132, 434, 26);
+            chkAutoUpdate.BackColor = Theme.Card;
+            chkAutoUpdate.CheckedChanged += delegate
+            {
+                autoUpdate = chkAutoUpdate.Checked;
+                SaveSettings();
+                RefreshUpdateStatus();
+                // Switching it on should act on it, not wait for the next tick
+                if (autoUpdate) MaybeCheckAppUpdate();
+            };
+            about.Controls.Add(chkAutoUpdate);
 
-            btnOpenLog = Btn(Ico.FileIcon, Theme.Subtle, Theme.CardLine, Theme.Text,
-                280, 150, 174, 36, delegate { OpenLog(); });
-            btnOpenLog.BackColor = Theme.Card;
-            about.Controls.Add(btnOpenLog);
+            updateStatus = Lbl(20, 164, 434, 34, Theme.Ui(8.5f), Theme.Muted);
+            updateStatus.BackColor = Color.Transparent;
+            about.Controls.Add(updateStatus);
+
+            btnAbout = Btn(Ico.Info, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
+                20, 206, 434, 38, delegate { ShowAboutDialog(); });
+            btnAbout.BackColor = Theme.Card;
+            about.Controls.Add(btnAbout);
+
+            btnCheckUpdate = Btn(Ico.Download, Theme.Subtle, Theme.CardLine, Theme.Text,
+                20, 252, 434, 38, delegate { CheckForUpdatesNow(); });
+            btnCheckUpdate.BackColor = Theme.Card;
+            about.Controls.Add(btnCheckUpdate);
             page.Controls.Add(about);
             return page;
         }
@@ -898,7 +945,9 @@ namespace WindowsStalker
             chkAutostart.Checked = AutostartEnabled;
             chkConfirm.Checked = confirmBeforeClean;
             chkTrayClose.Checked = closeToTray;
+            chkAutoUpdate.Checked = autoUpdate;
             UpdateSchedButtons();
+            RefreshUpdateStatus();
             btnInstall.Text = IsInstalled ? Lang.T("btn.uninstallApp") : Lang.T("btn.installApp");
         }
 
@@ -969,7 +1018,7 @@ namespace WindowsStalker
             dashAnalyze.Text = Lang.T("btn.smartScan");
             dashAnalyze.SubText = Lang.T("btn.smartScanSub");
             dashStop.Text = Lang.T("btn.stop");
-            dashStop.SubText = Lang.T("clean.running");
+            dashStop.SubText = Lang.T("btn.stopSub");
             dashClean.Text = Lang.T("tile.clean");
             dashClean.SubText = Lang.T("tile.cleanSub");
             tileRegistry.Text = Lang.T("tile.registry");
@@ -998,10 +1047,14 @@ namespace WindowsStalker
             btnSpacePickFolder.Text = Lang.T("btn.pickFolder");
             btnSpaceDelete.Text = Lang.T("btn.deleteSelected");
             btnSpaceOpen.Text = Lang.T("btn.open");
+            btnSpaceStop.Text = Lang.T("btn.stop");
 
             chkAutostart.Text = Lang.T("set.autostart");
             chkConfirm.Text = Lang.T("set.confirm");
             chkTrayClose.Text = Lang.T("set.closeToTray");
+            chkAutoUpdate.Text = Lang.T("set.autoUpdate");
+            btnAbout.Text = Lang.T("btn.about");
+            btnCheckUpdate.Text = Lang.T("btn.checkUpdate");
             btnSchedOff.Text = Lang.T("sched.off");
             btnSchedDaily.Text = Lang.T("sched.daily");
             btnSchedWeekly.Text = Lang.T("sched.weekly");
@@ -1076,19 +1129,25 @@ namespace WindowsStalker
 
         // ---------- progress plumbing shared by every page ----------
 
+        // Every Stop button in the app is shown from here, so whichever page the
+        // user is looking at when a scan starts has one within reach.
         void BeginBusy(string status)
         {
             SetStatus(status);
             progress.Start();
             btnAnalyze.Enabled = false;
             btnClean.Enabled = false;
-            dashAnalyze.Enabled = false;
             dashClean.Enabled = false;
             btnRegScan.Enabled = false;
             btnSpaceScanBig.Enabled = false;
             btnSpaceScanDupes.Enabled = false;
             btnStopScan.Visible = true;
-            dashStop.Visible = true;
+            // The dashboard and space Stop buttons share their cell with the
+            // action they replace, and a control added later sits *under* the one
+            // added before it — leaving the tile visible would have hidden Stop
+            // behind it. Hiding what it covers is what makes the swap real.
+            SwapStop(dashStop, true, dashAnalyze);
+            SwapStop(btnSpaceStop, true, btnSpaceScanBig, btnSpaceScanDupes);
         }
 
         void EndBusy(string status)
@@ -1096,14 +1155,23 @@ namespace WindowsStalker
             SetStatus(status);
             progress.Stop();
             btnAnalyze.Enabled = true;
-            dashAnalyze.Enabled = true;
             btnRegScan.Enabled = true;
             btnSpaceScanBig.Enabled = true;
             btnSpaceScanDupes.Enabled = true;
             btnStopScan.Visible = false;
-            dashStop.Visible = false;
+            SwapStop(dashStop, false, dashAnalyze);
+            SwapStop(btnSpaceStop, false, btnSpaceScanBig, btnSpaceScanDupes);
             btnClean.Enabled = scan.Finished && scan.SelectedBytes > 0;
             dashClean.Enabled = btnClean.Enabled;
+        }
+
+        static void SwapStop(Control stop, bool busy, params Control[] covered)
+        {
+            if (stop == null) return;
+            foreach (Control c in covered)
+                if (c != null) c.Visible = !busy;
+            stop.Visible = busy;
+            if (busy) stop.BringToFront();
         }
 
         void CancelWork()

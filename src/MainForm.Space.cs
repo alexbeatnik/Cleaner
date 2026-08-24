@@ -198,17 +198,37 @@ namespace WindowsStalker
             int announced = candidateCount;
             OnUi(delegate { SetStatus(string.Format(Lang.T("space.hashing"), announced)); });
 
+            // Hashing is the long half of this scan, and until it says something
+            // the window looks hung — which is also why Stop felt broken. The
+            // count is pushed to the status bar in batches rather than per file:
+            // one BeginInvoke per hashed file would cost more than the hashing.
             var groups = new List<List<FileRecord>>();
+            int hashed = 0, reported = 0;
             foreach (List<FileRecord> bucket in candidates)
             {
                 if (cancel.Cancelled) return Lang.T("common.cancelled");
                 foreach (List<FileRecord> prefixGroup in GroupByHash(bucket, 65536, cancel))
                 {
+                    // A cancelled GroupByHash returns whatever it managed to
+                    // bucket, so the groups built from here on are half-measured
+                    // — stop before they reach the list rather than after.
+                    if (cancel.Cancelled) return Lang.T("common.cancelled");
                     if (prefixGroup.Count < 2) continue;
                     foreach (List<FileRecord> fullGroup in GroupByHash(prefixGroup, 0, cancel))
                         if (fullGroup.Count > 1) groups.Add(fullGroup);
                 }
+                hashed += bucket.Count;
+                if (hashed - reported >= 25 || hashed >= announced)
+                {
+                    reported = hashed;
+                    int done = hashed;
+                    OnUi(delegate
+                    {
+                        SetStatus(string.Format(Lang.T("space.hashingProgress"), done, announced));
+                    });
+                }
             }
+            if (cancel.Cancelled) return Lang.T("common.cancelled");
 
             groups.Sort(delegate(List<FileRecord> a, List<FileRecord> b)
             {
@@ -242,8 +262,10 @@ namespace WindowsStalker
             foreach (FileRecord file in files)
             {
                 if (cancel.Cancelled) break;
-                string hash = Util.HashFile(file.Path, maxBytes);
-                if (hash == null) continue; // unreadable: never call it a duplicate
+                // The flag travels into the hash: a single 8 GB file would
+                // otherwise hold the walk here long after Stop was pressed.
+                string hash = Util.HashFile(file.Path, maxBytes, cancel);
+                if (hash == null) continue; // unreadable or cancelled: never call it a duplicate
                 List<FileRecord> bucket;
                 if (!byHash.TryGetValue(hash, out bucket))
                 {

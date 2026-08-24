@@ -403,17 +403,28 @@ namespace WindowsStalker
         // once instead of on every pass.
         public static string HashFile(string path, long maxBytes)
         {
+            return HashFile(path, maxBytes, null);
+        }
+
+        // Chunked all the way through, including the full hash: SHA256's
+        // ComputeHash(stream) swallows a multi-gigabyte file in one call that
+        // nothing can interrupt, which is what used to make the duplicate finder
+        // ignore Stop for minutes at a time. Reading it 64 KB at a time costs
+        // nothing measurable and gives the flag somewhere to be seen.
+        // A cancelled hash returns null, which every caller already treats as
+        // "unreadable, never call it a duplicate".
+        public static string HashFile(string path, long maxBytes, CancelFlag cancel)
+        {
             try
             {
                 using (var sha = SHA256.Create())
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 65536))
                 {
-                    if (maxBytes <= 0 || fs.Length <= maxBytes)
-                        return ToHex(sha.ComputeHash(fs));
                     var buffer = new byte[65536];
-                    long left = maxBytes;
+                    long left = maxBytes > 0 ? maxBytes : long.MaxValue;
                     while (left > 0)
                     {
+                        if (cancel != null && cancel.Cancelled) return null;
                         int want = (int)Math.Min(buffer.Length, left);
                         int got = fs.Read(buffer, 0, want);
                         if (got <= 0) break;

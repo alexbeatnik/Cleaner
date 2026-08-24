@@ -395,7 +395,10 @@ namespace WindowsStalker
             // is not the one that marshals onto the UI thread.
             schedTimer = new System.Windows.Forms.Timer();
             schedTimer.Interval = 10 * 60 * 1000; // ten minutes is plenty for a daily job
-            schedTimer.Tick += delegate { ScheduleTick(); };
+            // The same tick drives the update check: both are "once a day, when
+            // the app happens to be idle" jobs, and one timer is one thing to
+            // reason about when either of them misfires.
+            schedTimer.Tick += delegate { ScheduleTick(); MaybeCheckAppUpdate(); };
             schedTimer.Start();
         }
 

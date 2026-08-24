@@ -57,6 +57,7 @@ namespace WindowsStalker
             A("btn.analyze", "ANALYZE", "АНАЛІЗ");
             A("btn.clean", "CLEAN", "ОЧИСТИТИ");
             A("btn.stop", "Stop", "Зупинити");
+            A("btn.stopSub", "Cancel the job in progress", "Скасувати поточне завдання");
             A("btn.refresh", "Refresh", "Оновити");
             A("btn.selectAll", "Select all", "Вибрати все");
             A("btn.selectNone", "Select none", "Зняти вибір");
@@ -247,6 +248,8 @@ namespace WindowsStalker
             A("space.folder", "Folder: {0}", "Папка: {0}");
             A("space.scanning", "Scanning {0}…", "Сканую {0}…");
             A("space.hashing", "Comparing {0} candidates…", "Порівнюю {0} кандидатів…");
+            A("space.hashingProgress", "Comparing {0} of {1} candidates… press STOP to cancel",
+                                       "Порівнюю {0} з {1} кандидатів… натисніть «ЗУПИНИТИ», щоб скасувати");
             A("space.bigFound", "{0} files over {1}, {2} in total", "{0} файлів понад {1}, разом {2}");
             A("space.dupFound", "{0} duplicate groups, {1} can be freed", "{0} груп дублікатів, можна звільнити {1}");
             A("space.dupGroup", "{0} copies × {1}", "{0} копій × {1}");
@@ -283,8 +286,68 @@ namespace WindowsStalker
             A("btn.openLog", "Open the log", "Відкрити журнал");
             A("badge.installed", "✓ Installed", "✓ Встановлено");
             A("about.text",
-                "WindowsStalker {0}\r\n\r\nDisk cleanup and system tune-up for Windows.\r\nOne portable executable, no dependencies, no toolchain: it is built by the C# compiler that ships inside Windows.\r\n\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0",
-                "WindowsStalker {0}\r\n\r\nОчищення диска та налаштування системи для Windows.\r\nОдин портативний виконуваний файл, без залежностей і без тулчейну: збирається компілятором C#, що входить до складу Windows.\r\n\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0");
+                "WindowsStalker {0}\r\nDisk cleanup and system tune-up for Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0",
+                "WindowsStalker {0}\r\nОчищення диска та налаштування системи для Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0");
+
+            // ---------- automatic updates ----------
+            A("set.autoUpdate", "Update automatically from GitHub", "Оновлювати автоматично з GitHub");
+            A("btn.checkUpdate", "Check for updates", "Перевірити оновлення");
+            A("update.off", "Automatic updates are off — check by hand any time.",
+                            "Автооновлення вимкнено — можна перевіряти вручну будь-коли.");
+            A("update.lastCheck", "Checked once a day. Last check: {0}",
+                                  "Перевірка раз на добу. Востаннє: {0}");
+            A("update.checking", "Checking GitHub for a newer version…",
+                                 "Перевіряю GitHub на новішу версію…");
+            A("update.upToDate", "Version {0} is the latest one.", "Версія {0} — найновіша.");
+            A("update.failed", "Could not check for updates. Check the connection and try again.",
+                               "Не вдалося перевірити оновлення. Перевірте з'єднання і спробуйте ще раз.");
+            A("update.busy", "Finish the job in progress first, then check again.",
+                             "Спершу завершіть поточне завдання, потім перевірте ще раз.");
+            A("update.installing", "Updating to {0} — the app will restart in a few seconds…",
+                                   "Оновлюю до {0} — програма перезапуститься за кілька секунд…");
+
+            // ---------- about dialog ----------
+            A("btn.about", "ABOUT WINDOWSSTALKER", "ПРО WINDOWSSTALKER");
+            A("about.title", "About WindowsStalker", "Про WindowsStalker");
+            // no "&" in these: a Label eats it as a mnemonic marker
+            A("about.version", "Version {0} — free, open source, Apache 2.0 license",
+                               "Версія {0} — безкоштовна, відкритий код, ліцензія Apache 2.0");
+            A("about.desc",
+                "Disk cleanup and system tune-up for Windows: caches, temporary files, logs and crash "
+                + "dumps, broken registry entries, startup programs, installed apps, large files and "
+                + "byte-for-byte duplicates. One portable executable, no dependencies, no ads, no "
+                + "background service.",
+                "Очищення диска та налаштування системи для Windows: кеші, тимчасові файли, журнали та "
+                + "дампи збоїв, биті записи реєстру, програми автозапуску, встановлені програми, великі "
+                + "файли та побайтові дублікати. Один портативний виконуваний файл, без залежностей, "
+                + "реклами та фонових служб.");
+            A("about.quickStart", "Quick start", "Швидкий старт");
+            A("about.howTo",
+                "1. SMART SCAN on the dashboard measures every known junk location — nothing is deleted yet.\r\n"
+                + "2. The Cleaner page lists what it found; untick anything you want to keep, then CLEAN.\r\n"
+                + "3. Registry finds entries pointing at files that are gone. A .reg backup is written before every fix.\r\n"
+                + "4. Startup and Apps turn off what launches with Windows and remove what you no longer use.\r\n"
+                + "5. Space finds large files and duplicates in a folder you pick — those go to the Recycle Bin, not straight out.\r\n"
+                + "6. Long scans can be called off at any point with STOP.\r\n"
+                + "7. Runs portable, or installed per-user with no administrator rights — Settings has the button either way.",
+                "1. «РОЗУМНИЙ АНАЛІЗ» на панелі огляду вимірює всі відомі місця зі сміттям — поки що нічого не видаляється.\r\n"
+                + "2. Сторінка «Очищення» показує знайдене; зніміть позначки з потрібного і натисніть «ОЧИСТИТИ».\r\n"
+                + "3. «Реєстр» шукає записи, що вказують на зниклі файли. Перед кожним виправленням пишеться резервна копія .reg.\r\n"
+                + "4. «Автозапуск» і «Програми» вимикають те, що стартує з Windows, і видаляють непотрібне.\r\n"
+                + "5. «Місце» шукає великі файли та дублікати у вибраній папці — вони йдуть до кошика, а не одразу назавжди.\r\n"
+                + "6. Довгі сканування можна будь-коли скасувати кнопкою «ЗУПИНИТИ».\r\n"
+                + "7. Працює портативно або встановленою для користувача без прав адміністратора — кнопка є в налаштуваннях.");
+            A("about.star", "★  Star this project on GitHub", "★  Постав зірку проєкту на GitHub");
+            A("about.releases", "↓  All releases — download the latest version",
+                                "↓  Усі релізи — завантажити найновішу версію");
+            A("about.follow", "+  Follow the author on GitHub", "+  Підписатися на автора на GitHub");
+            A("about.license", "§  Apache 2.0 license — free to use, modify and share",
+                               "§  Ліцензія Apache 2.0 — вільно використовуй, змінюй і поширюй");
+            A("about.author",
+                "Written by Oleksii Poliakov. Copyright 2026 — Apache License 2.0. "
+                + "Built by the C# compiler that ships inside Windows: no toolchain, no NuGet, no binary assets.",
+                "Автор — Олексій Поляков. Copyright 2026 — ліцензія Apache 2.0. "
+                + "Збирається компілятором C#, що входить до складу Windows: без тулчейну, NuGet і бінарних ресурсів.");
 
             // ---------- elevation, install ----------
             A("admin.offer", "{0} of the selected items live in system folders and need administrator rights.\r\n\r\nRun the elevated helper for those?",

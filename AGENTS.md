@@ -57,6 +57,8 @@ plain-data types the tests can reach without a window.
 | `src/MainForm.Space.cs` | large-file and duplicate finders |
 | `src/MainForm.Settings.cs` | `settings.ini` load/save, paths, install detection |
 | `src/MainForm.Install.cs` | per-user install/uninstall, shortcuts, the Apps-list entry |
+| `src/MainForm.Updates.cs` | the GitHub-Releases self-updater, and the project/author URLs the About dialog links to |
+| `src/MainForm.About.cs` | the About dialog (mark, version, quick start, project links) |
 | `src/CleanRules.cs` | the junk catalog — **data, not code paths** |
 | `src/CleanScan.cs` | per-analysis state (`CleanScan`, `RuleResult`) |
 | `src/ElevatedJob.cs` | the job-file format and the `--run-job` elevated helper |
@@ -84,7 +86,7 @@ with the list inside it, and a row of buttons along the bottom of that card.
 in named constants, so the five list pages line up pixel for pixel — add a page
 through those helpers rather than with fresh coordinates.
 
-### Four WinForms traps this layout already hit
+### The WinForms traps this layout already hit
 
 Each cost a debugging round; do not reintroduce them.
 
@@ -121,6 +123,18 @@ Each cost a debugging round; do not reintroduce them.
   which is why pages are `CrtPanel`. A label that sits on a painted surface must
   be `Color.Transparent`, or it punches an unlined hole in it — that is what hid
   the banner watermark.
+- **A control added later sits *under* one added earlier.** The Stop buttons
+  that share a cell with the action they replace (`dashStop` over `dashAnalyze`,
+  `btnSpaceStop` over the two Space scan buttons) were added after it, so simply
+  setting `Visible = true` put them behind an opaque tile and the dashboard Stop
+  never appeared at all. `SwapStop` in `MainForm.Ui.cs` hides what the Stop
+  covers and calls `BringToFront()`; use it rather than toggling `Visible`.
+- **`OnTextChanged` does not repaint a `UserPaint` control.** Only the
+  `ResizeRedraw` style invalidates, and this is a monospace UI — a translated
+  caption of the same length measures to the same width, so the resize never
+  happens and the control keeps painting the old language. `NavTab.FitWidth` and
+  `Toggle.FitWidth` both call `Invalidate()` for exactly this reason
+  ("Space"/"Місце" is the pair that found it).
 - **Letter-spacing is measured per string, not per character.**
   `TextRenderer.MeasureText` adds its own padding once per call, so measuring a
   run a character at a time charges that padding to every character and triples
@@ -183,6 +197,27 @@ Follow the matching rule whenever a change touches one of these areas:
   helper reports failures through its exit code and the UI must not claim
   success it did not get. The single unavoidable child shell is the detached
   `cmd /c rmdir` in uninstall — the exe cannot delete itself.
+- **`cancellable-work`** — every background scan takes a `CancelFlag` and is
+  reachable from a Stop button on the page that started it (`BeginBusy`/
+  `EndBusy` show all of them at once, so whichever page the user is looking at
+  has one). The flag has to reach as deep as the work does: checking it between
+  files was not enough for the duplicate finder, because one full-file
+  `SHA256.ComputeHash(stream)` on a multi-gigabyte file is a single
+  uninterruptible call — `Util.HashFile` therefore reads in 64 KB blocks and
+  takes the flag. A cancelled run must also discard its partial results rather
+  than display them (`BuildDuplicateRows` returns early, and `StartSpaceScan`
+  only fills the list when the flag is clear).
+- **`self-update`** — `MainForm.Updates.cs` checks the GitHub Releases API once
+  per launch and once a day after that, and swaps the exe by handing a detached
+  `cmd.exe` the move-and-relaunch (a running exe cannot overwrite itself). Two
+  invariants: the swap **never** interrupts work — `UpdateBusy` covers every
+  running scan, the clean, and an open modal dialog (`IsWindowEnabled`) — and a
+  failed check is silent unless the user pressed the button. The download is
+  size-checked before it is trusted, because an error page also arrives as a
+  file. Both decisions are pure and unit-tested (`AppUpdateDue`,
+  `IsNewerVersion`); a tag that is not a plain dotted number never triggers a
+  download. The asset name here must stay in step with what
+  `.github/workflows/release.yml` uploads.
 - **`testing`** — testable logic is exposed as `internal static` members and
   covered in `tests/*.cs` (zero-dependency reflection runner: every public
   static `Test*` method on a `*Tests` class runs). Prefer property tests over
