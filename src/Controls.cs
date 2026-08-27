@@ -5,7 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     // Rounded button with hover/pressed states instead of the system Button.
     // Implements IButtonControl so it can act as AcceptButton/CancelButton.
@@ -56,26 +56,31 @@ namespace WindowsStalker
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.None;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(BackColor); // background behind the cell (card colour when on a card)
             // disabled = dark surface with muted text (not a bright gray slab)
             Color c = !Enabled ? Theme.Subtle : (down ? Back : (over ? Hover : Back));
-            var box = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var b = new SolidBrush(c)) g.FillRectangle(b, box);
-            Theme.Scanlines(g, box, Theme.Phase(this));
-            // Every button is a framed cell: this terminal has no fill without an
-            // edge, and the frame is what carries the hover state.
-            Color edge = !Enabled ? Theme.CardLine : (over ? Theme.AccentHot : Theme.Muted);
-            using (var pen = new Pen(edge)) g.DrawRectangle(pen, box);
-            if (CardStyle) Theme.Brackets(g, box, edge, 10);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var box = new RectangleF(0.5f, 0.5f, Width - 1, Height - 1);
+            float radius = CardStyle ? Theme.Radius : Theme.RadiusSmall + 2;
+            using (var path = Theme.Round(box, radius))
+            {
+                using (var b = new SolidBrush(c)) g.FillPath(b, path);
+                // Only the secondary buttons need an outline: a filled accent or
+                // danger button already separates itself from the surface, and
+                // ringing it as well is what made every control read as a cell.
+                Color edge = !Enabled ? Theme.CardLine
+                    : over ? Theme.AccentHot
+                    : c.GetBrightness() < 0.30f ? Theme.CardLine : Color.Empty;
+                if (!edge.IsEmpty)
+                    using (var pen = new Pen(edge)) g.DrawPath(pen, path);
+            }
 
             Color fg = Enabled ? TextColor : Theme.Muted;
             // NoPrefix: button labels may contain a literal "&"
             const TextFormatFlags NoPre = TextFormatFlags.NoPrefix;
             if (Icon == null)
             {
-                Theme.DrawTrackedCentered(g, Text.ToUpperInvariant(), Font, ClientRectangle, fg, Theme.Track);
+                Theme.DrawLabelCentered(g, Text, Font, ClientRectangle, fg);
                 return;
             }
             if (CardStyle)
@@ -88,19 +93,19 @@ namespace WindowsStalker
                 if (string.IsNullOrEmpty(SubText))
                 {
                     var textRect = new Rectangle(4, textTop, Width - 8, Height - textTop - 6);
-                    TextRenderer.DrawText(g, Text.ToUpperInvariant(), Font, textRect, fg,
+                    TextRenderer.DrawText(g, Text, Font, textRect, fg,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | NoPre);
                 }
                 else
                 {
                     int labelH = Font.Height + 2;
-                    Theme.DrawTrackedCentered(g, Text.ToUpperInvariant(), Font,
-                        new Rectangle(4, textTop - 2, Width - 8, labelH), fg, Theme.Track);
-                    // caption colour follows the painted background: amber-dim on
-                    // dark cells, near-black on a lit amber fill, where dim amber
-                    // would sink into it
+                    Theme.DrawLabelCentered(g, Text, Font,
+                        new Rectangle(4, textTop - 2, Width - 8, labelH), fg);
+                    // caption colour follows the painted background: muted grey on
+                    // a dark tile, a softened white on a filled accent one, where
+                    // grey would sink into the blue
                     Color subFg = !Enabled ? Theme.Disabled
-                        : c.GetBrightness() > 0.35f ? Color.FromArgb(210, Theme.OnAccent)
+                        : c.GetBrightness() > 0.35f ? Color.FromArgb(210, 255, 255, 255)
                         : Theme.Muted;
                     using (var sf = Theme.Ui(7.75f))
                         TextRenderer.DrawText(g, SubText, sf, new Rectangle(4, textTop - 2 + labelH, Width - 8, 15),
@@ -111,13 +116,15 @@ namespace WindowsStalker
             else
             {
                 const int iconBox = 16, gap = 7;
-                string label = Text.ToUpperInvariant();
-                int totalW = iconBox + gap + Theme.MeasureTracked(label, Font, Theme.Track);
+                // The +8 is the same measure-versus-draw padding slack the nav
+                // tabs need: without it a label that only just fits gets an
+                // ellipsis instead of its last two characters.
+                int totalW = iconBox + gap + Theme.MeasureLabel(Text, Font) + 8;
                 int startX = Math.Max(6, (Width - totalW) / 2);
                 var iconRect = new RectangleF(startX, (Height - iconBox) / 2f, iconBox, iconBox);
                 Icon(g, iconRect, fg);
-                var textRect = new Rectangle(startX + iconBox + gap, 0, Width - (startX + iconBox + gap) - 4, Height);
-                Theme.DrawTrackedLeft(g, label, Font, textRect, fg, Theme.Track);
+                var textRect = new Rectangle(startX + iconBox + gap, 0, Width - (startX + iconBox + gap), Height);
+                Theme.DrawLabelLeft(g, Text, Font, textRect, fg);
             }
         }
     }
@@ -220,7 +227,7 @@ namespace WindowsStalker
             Icon = icon;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
                 | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            Font = Theme.UiBold(9.5f);
+            Font = Theme.UiBold(9f);
             Height = 44;
             Cursor = Cursors.Hand;
             Margin = new Padding(1, 0, 1, 0);
@@ -230,13 +237,21 @@ namespace WindowsStalker
 
         public void SetActive(bool a) { Active = a; Invalidate(); }
 
-        // Invalidate explicitly, not just via ResizeRedraw: this is a monospace
-        // UI, so a translated caption of the same length measures to the same
-        // width, the resize never happens, and the tab would keep painting the
-        // old language. "Space"/"Місце" is exactly that pair.
+        // Invalidate explicitly, not just via ResizeRedraw: a translated caption
+        // can measure to the same width, in which case the resize never happens
+        // and the tab keeps painting the old language. "Space"/"Місце" is exactly
+        // that pair - it found this when the UI was monospace and every caption of
+        // the same length measured identically.
         void FitWidth()
         {
-            Width = 42 + Theme.MeasureTracked(Text.ToUpperInvariant(), Font, Theme.Track);
+            // 44 is the chrome the paint below uses (32 before the label, 12
+            // after) plus slack for the padding TextRenderer adds on a draw but
+            // not on a NoPadding measure. One pixel short and EndEllipsis does not
+            // trim a character, it trims three: "Apps" came out as "Ap...". It is
+            // also as tight as the row goes — the seven Ukrainian labels are the
+            // widest set and only just clear the wordmark's column at 1024 wide,
+            // which is what fixed "Налаштування" running off the right edge.
+            Width = 44 + Theme.MeasureLabel(Text, Font);
             Invalidate();
         }
         protected override void OnTextChanged(EventArgs e) { base.OnTextChanged(e); FitWidth(); }
@@ -245,31 +260,29 @@ namespace WindowsStalker
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.None;
-            Theme.Surface(this, g, Theme.Bg);
-            // The live tab is a lit cell underlined in amber rather than a pill:
-            // this is a console, and an underline is how a console says which
-            // channel is selected.
-            var cell = new Rectangle(1, 6, Width - 3, Height - 15);
-            if (Active || hover)
-                using (var b = new SolidBrush(Color.FromArgb(Active ? 34 : 18, Theme.Accent)))
-                    g.FillRectangle(b, cell);
-            if (Active)
-                using (var b = new SolidBrush(Theme.Accent))
-                    g.FillRectangle(b, cell.X, cell.Bottom - 1, cell.Width, 2);
-            Color c = Active ? Theme.AccentHot : (hover ? Theme.Text : Theme.Muted);
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            var iconRect = new RectangleF(13, (Height - 8 - 17) / 2f, 17, 17);
+            Theme.Surface(this, g, Theme.Bg);
+            // Active tab = a filled accent pill, hover = a soft white one: the
+            // idiom every current dashboard uses, and the same one the AV project
+            // next door wears.
+            var pill = new RectangleF(1, 6, Width - 2, Height - 14);
+            if (Active || hover)
+                using (var path = Theme.Round(pill, pill.Height / 2f))
+                using (var b = new SolidBrush(Active ? Color.FromArgb(34, Theme.Accent)
+                                                     : Color.FromArgb(13, 255, 255, 255)))
+                    g.FillPath(b, path);
+            Color c = Active ? Theme.AccentHot : (hover ? Theme.Text : Theme.Muted);
+            var iconRect = new RectangleF(10, (Height - 8 - 16) / 2f, 16, 16);
             if (Icon != null) Icon(g, iconRect, c);
-            var textRect = new Rectangle((int)iconRect.Right + 6, 0, Width - (int)iconRect.Right - 12, Height - 8);
-            Theme.DrawTrackedLeft(g, Text.ToUpperInvariant(), Font, textRect, c, Theme.Track);
+            var textRect = new Rectangle((int)iconRect.Right + 6, 0, Width - (int)iconRect.Right - 10, Height - 8);
+            Theme.DrawLabelLeft(g, Text, Font, textRect, c);
         }
     }
 
     enum GaugeState { Idle, Busy, Result, Clean }
 
     // The dashboard hero: a donut ring with a headline value in the middle.
-    // Idle shows the sparkle mark, Busy shows the analysis percentage, Result
+    // Idle shows the app mark, Busy shows the analysis percentage, Result
     // shows how much can be reclaimed, Clean shows the all-tidy state.
     class Gauge : Control
     {
@@ -357,13 +370,10 @@ namespace WindowsStalker
                 }
             }
 
-            // The unlit part of the ring is dashed, so the dial reads as segments
-            // on a panel instead of a solid donut
-            using (var track = new Pen(Color.FromArgb(70, 47, 0), thick))
-            {
-                track.DashStyle = DashStyle.Dash;
+            // The unlit part of the ring: a flat neutral track the lit arc runs
+            // over, so the dial reads as a proportion rather than as a bare arc.
+            using (var track = new Pen(Theme.CardLine, thick))
                 g.DrawEllipse(track, box);
-            }
             using (var pen = new Pen(c, thick))
             {
                 pen.StartCap = pen.EndCap = LineCap.Round;
@@ -375,7 +385,7 @@ namespace WindowsStalker
 
             if (State == GaugeState.Idle && string.IsNullOrEmpty(Big))
             {
-                Ico.Radiation(g, new RectangleF(Width / 2f - s * 0.17f, Height / 2f - s * 0.19f, s * 0.34f, s * 0.34f), c);
+                Ico.Mark(g, new RectangleF(Width / 2f - s * 0.19f, Height / 2f - s * 0.19f, s * 0.38f, s * 0.38f), c);
             }
             else
             {
@@ -419,6 +429,21 @@ namespace WindowsStalker
             Height = 46;
         }
 
+        // Assigning the fields directly would leave the bar showing the old
+        // numbers: this is a UserPaint control, so nothing invalidates it on its
+        // own. The re-read runs on a timer, hence the equality guard — a repaint
+        // every five seconds for numbers that did not move is pure flicker.
+        public void SetDrive(string letter, string label, long total, long free)
+        {
+            if (label == null) label = "";
+            if (Letter == letter && Label == label && Total == total && Free == free) return;
+            Letter = letter;
+            Label = label;
+            Total = total;
+            Free = free;
+            Invalidate();
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
@@ -430,12 +455,19 @@ namespace WindowsStalker
 
             using (var f = Theme.UiBold(9.5f))
                 TextRenderer.DrawText(g, Letter + (string.IsNullOrEmpty(Label) ? "" : "  " + Label), f,
-                    new Rectangle(0, 2, Width - 150, 18), Theme.Text,
+                    new Rectangle(0, 2, Width - 270, 18), Theme.Text,
                     TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            // The percentage and the decimal on the free figure are what make a
+            // clean visible here. Util.FormatSize drops to whole units past 100,
+            // so on a 953 GB disk a 3 GB clean moved "281 GB" by nothing anyone
+            // would notice and the 40-cell meter needs 24 GB to light one cell —
+            // the app looked like it had not freed a byte.
+            string readout = Util.FormatPercent(used) + " " + Lang.T("drive.used") + " · "
+                + Util.FormatSizeFine(Free) + " " + Lang.T("drive.freeOf") + " " + Util.FormatSize(Total);
             using (var f = Theme.Ui(8.5f))
-                TextRenderer.DrawText(g, Util.FormatSize(Free) + " " + Lang.T("drive.freeOf") + " " + Util.FormatSize(Total), f,
-                    new Rectangle(Width - 190, 3, 190, 18), Theme.Muted,
-                    TextFormatFlags.Right | TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(g, readout, f,
+                    new Rectangle(Width - 270, 3, 270, 18), Theme.Muted,
+                    TextFormatFlags.Right | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
 
             // A cell meter rather than a bar: forty segments, lit up to the used
             // fraction, the way a console reports a tank
@@ -475,16 +507,20 @@ namespace WindowsStalker
             base.OnPaint(e);
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            Theme.PaintCard(g, Width, Height, Theme.Phase(this));
-            // The mark again, huge and nearly burnt out, sitting in the empty
-            // right-hand end of the banner: the same trefoil as the taskbar icon,
-            // used here as the panel stencil the way a rig has one stamped on it.
+            Theme.PaintCard(g, Width, Height);
+            // The mark again, oversized and nearly washed out, sitting in the empty
+            // right-hand end of the banner: the same mop as the taskbar icon, used
+            // here as a watermark rather than as a second drawing.
             var slab = new Rectangle(1, 0, Width - 4, Height - 6);
             Region clip = g.Clip;
             g.SetClip(slab);
-            float wr = Height * 0.40f;
-            using (var mark = Brand.Trefoil(slab.Right - wr * 1.35f, slab.Y + Height * 0.48f, wr))
-            using (var b = new SolidBrush(Color.FromArgb(24, Theme.Accent)))
+            // Sized and placed to sit inside the slab rather than be cropped by
+            // it: the tilt puts the handle tip and the head corner well outside
+            // the mark's nominal half-height, so a watermark scaled to fill the
+            // card comes out with its handle sheared off by the top edge.
+            float wr = Height * 0.32f;
+            using (var mark = Brand.AppMark(slab.Right - wr * 1.7f, slab.Y + Height * 0.5f, wr))
+            using (var b = new SolidBrush(Color.FromArgb(20, Theme.Accent)))
                 g.FillPath(b, mark);
             g.Clip = clip;
             // A slim bar: anything wider reads as a stuck progress indicator
@@ -512,7 +548,7 @@ namespace WindowsStalker
             base.OnPaint(e);
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            Theme.PaintCard(g, Width, Height, Theme.Phase(this));
+            Theme.PaintCard(g, Width, Height);
             using (var capF = Theme.UiBold(8f))
             using (var valF = Theme.UiBold(13.5f))
             {
@@ -521,9 +557,9 @@ namespace WindowsStalker
                 {
                     string cap = Captions[i].ToUpperInvariant();
                     string val = i < Values.Length ? Values[i] : "";
-                    int cell = Math.Max(Theme.MeasureTracked(cap, capF, Theme.Track),
+                    int cell = Math.Max(Theme.MeasureLabel(cap, capF),
                                         TextRenderer.MeasureText(g, val, valF).Width);
-                    Theme.DrawTracked(g, cap, capF, new Point((int)x, 11), Theme.Muted, Theme.Track);
+                    Theme.DrawLabel(g, cap, capF, new Point((int)x, 11), Theme.Muted);
                     Color vc = ValueColors != null && i < ValueColors.Length && !ValueColors[i].IsEmpty
                         ? ValueColors[i] : Theme.Text;
                     TextRenderer.DrawText(g, val, valF, new Rectangle((int)x, 28, cell + 4, 28),
@@ -553,10 +589,10 @@ namespace WindowsStalker
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Theme.Surface(this, g, BackColor);
             float cx = Width / 2f, cy = Height / 2f;
-            Ico.Radiation(g, new RectangleF(cx - 30, cy - 84, 60, 60), Theme.CardLine);
+            Ico.Mark(g, new RectangleF(cx - 30, cy - 84, 60, 60), Theme.CardLine);
             using (var tf = Theme.UiBold(12f))
-                Theme.DrawTrackedCentered(g, Title.ToUpperInvariant(), tf,
-                    new Rectangle(0, (int)cy - 12, Width, 30), Theme.Text, Theme.Track);
+                Theme.DrawLabelCentered(g, Title, tf,
+                    new Rectangle(0, (int)cy - 12, Width, 30), Theme.Text);
             TextRenderer.DrawText(g, Sub, Font, new Rectangle(0, (int)cy + 20, Width, 24),
                 Theme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top);
         }
@@ -581,10 +617,9 @@ namespace WindowsStalker
             base.OnPaint(e);
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            Theme.PaintCard(g, Width, Height, Theme.Phase(this));
+            Theme.PaintCard(g, Width, Height);
             using (var f = Theme.UiBold(9.5f))
-                Theme.DrawTracked(g, HeaderText.ToUpperInvariant(), f, new Point(16, 15),
-                    Theme.AccentHot, Theme.Track);
+                Theme.DrawLabel(g, HeaderText.ToUpperInvariant(), f, new Point(16, 15), Theme.Muted);
         }
     }
 
@@ -624,6 +659,41 @@ namespace WindowsStalker
         // appear, which changes ClientSize without raising a resize event, so the
         // last column would otherwise overhang and produce a horizontal scrollbar.
         public void Refit() { StretchLastColumn(); }
+
+        // ---------- sorting ----------
+        //
+        // Opt-in: most lists here have a fixed order that means something (the
+        // cleaner's categories, the activity log) and should not invite a click
+        // that scrambles it. Turning it on makes the header clickable, which is
+        // also what makes the ListView raise ColumnClick at all — a Nonclickable
+        // header swallows the click and the event never arrives.
+        public bool Sortable
+        {
+            get { return HeaderStyle == ColumnHeaderStyle.Clickable; }
+            set { HeaderStyle = value ? ColumnHeaderStyle.Clickable : ColumnHeaderStyle.Nonclickable; }
+        }
+
+        int sortColumn = -1;
+        bool sortDescending;
+
+        public void SetSort(int column, bool descending)
+        {
+            sortColumn = column;
+            sortDescending = descending;
+            RepaintHeader();
+        }
+
+        void RepaintHeader()
+        {
+            if (!IsHandleCreated) return;
+            try
+            {
+                IntPtr header = NativeMethods.SendMessage(Handle, NativeMethods.LVM_GETHEADER,
+                                                          IntPtr.Zero, IntPtr.Zero);
+                if (header != IntPtr.Zero) NativeMethods.InvalidateRect(header, IntPtr.Zero, true);
+            }
+            catch { }
+        }
 
         // The strip of header to the right of the last column is drawn by the
         // control itself and stays system-white however the rest is owner-drawn.
@@ -671,17 +741,50 @@ namespace WindowsStalker
         void OnDrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
             using (var b = new SolidBrush(BackColor)) e.Graphics.FillRectangle(b, e.Bounds);
+            bool sorted = e.ColumnIndex == sortColumn;
+            bool rightAligned = e.Header.TextAlign == HorizontalAlignment.Right;
+            Rectangle text = Rectangle.Inflate(e.Bounds, -8, 0);
             using (var f = Theme.UiBold(8.25f))
-                TextRenderer.DrawText(e.Graphics, e.Header.Text.ToUpperInvariant(), f,
-                    Rectangle.Inflate(e.Bounds, -8, 0), Theme.Muted,
-                    (e.Header.TextAlign == HorizontalAlignment.Right
-                        ? TextFormatFlags.Right : TextFormatFlags.Left)
-                    | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-            using (var p = new Pen(Theme.CardLine))
             {
-                p.DashStyle = DashStyle.Dash;
-                e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+                string caption = e.Header.Text.ToUpperInvariant();
+                // The arrow goes immediately beside the caption, not at the far
+                // end of the cell: NAME is 350px wide and SIZE is right-aligned,
+                // so an arrow pinned to the cell edge ends up closer to the
+                // neighbouring column's label than to its own.
+                int captionW = Theme.MeasureLabel(caption, f);
+                if (sorted && captionW + 26 <= text.Width)
+                {
+                    var arrow = new Rectangle(
+                        rightAligned ? text.Right - captionW - 17 : text.Left + captionW + 8,
+                        e.Bounds.Y + (e.Bounds.Height - 6) / 2, 9, 6);
+                    DrawSortArrow(e.Graphics, arrow, sortDescending, Theme.AccentHot);
+                    // Keep the caption clear of the arrow on the side it took.
+                    text = rightAligned
+                        ? new Rectangle(text.X + 17, text.Y, text.Width - 17, text.Height)
+                        : new Rectangle(text.X, text.Y, text.Width - 17, text.Height);
+                }
+                TextRenderer.DrawText(e.Graphics, caption, f,
+                    text, sorted ? Theme.AccentHot : Theme.Muted,
+                    (rightAligned ? TextFormatFlags.Right : TextFormatFlags.Left)
+                    | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
+            using (var p = new Pen(Theme.CardLine))
+                e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+        }
+
+        // Drawn rather than typed: not every face in the fallback stack carries a
+        // triangle glyph, and a missing one renders as a tofu box in the header.
+        static void DrawSortArrow(Graphics g, Rectangle r, bool descending, Color c)
+        {
+            SmoothingMode previous = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            PointF[] points = descending
+                ? new PointF[] { new PointF(r.Left, r.Top), new PointF(r.Right, r.Top),
+                                 new PointF(r.Left + r.Width / 2f, r.Bottom) }
+                : new PointF[] { new PointF(r.Left + r.Width / 2f, r.Top), new PointF(r.Right, r.Bottom),
+                                 new PointF(r.Left, r.Bottom) };
+            using (var b = new SolidBrush(c)) g.FillPolygon(b, points);
+            g.SmoothingMode = previous;
         }
 
         // Deliberately empty. Moving the mouse across the control makes Windows
@@ -717,7 +820,7 @@ namespace WindowsStalker
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 var box = new RectangleF(e.Bounds.X + CheckLeft, e.Bounds.Y + (e.Bounds.Height - CheckBox) / 2f,
                                          CheckBox, CheckBox);
-                using (var path = Theme.Round(box, Theme.Radius))
+                using (var path = Theme.Round(box, Theme.RadiusSmall))
                 {
                     if (state == 1)
                     {
@@ -775,7 +878,6 @@ namespace WindowsStalker
             if (!RuleBottom && !RuleTop) return;
             using (var p = new Pen(Theme.CardLine))
             {
-                p.DashStyle = DashStyle.Dash;
                 if (RuleBottom) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
                 if (RuleTop) g.DrawLine(p, 0, 0, Width, 0);
             }

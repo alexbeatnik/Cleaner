@@ -10,7 +10,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     // One problem found in the registry. Either a single value goes, or the whole
     // key does — never anything in between, so the backup and the fix always
@@ -505,7 +505,7 @@ namespace WindowsStalker
                 var sb = new StringBuilder();
                 sb.AppendLine(RegBackup.FileHeader);
                 sb.AppendLine();
-                sb.AppendLine("; WindowsStalker backup — run this file to restore the entries below");
+                sb.AppendLine("; Cleaner backup — run this file to restore the entries below");
                 foreach (RegIssue issue in issues)
                 {
                     if (issue.DeleteWholeKey) RegBackup.ExportKey(sb, issue.HiveName, issue.Key, true);

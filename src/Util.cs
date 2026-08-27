@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     static class Util
     {
@@ -28,6 +28,40 @@ namespace WindowsStalker
             while (v >= 1024 && unit < SizeUnits.Length - 1) { v /= 1024; unit++; }
             string fmt = v >= 100 ? "0" : v >= 10 ? "0.0" : "0.00";
             return v.ToString(fmt, CultureInfo.InvariantCulture) + " " + SizeUnits[unit];
+        }
+
+        // Same units, one more digit past 100. FormatSize drops the decimal there
+        // so a stat strip stays narrow, but the drive bars are the one place that
+        // reads as broken without it: on a 953 GB disk "281 GB free" is what both
+        // 281.0 and 281.9 print, so freeing a few gigabytes moved nothing on
+        // screen and the clean looked like it had done nothing.
+        public static string FormatSizeFine(long bytes)
+        {
+            if (bytes < 0) bytes = 0;
+            if (bytes < 1024) return bytes + " B";
+            double v = bytes;
+            int unit = 0;
+            while (v >= 1024 && unit < SizeUnits.Length - 1) { v /= 1024; unit++; }
+            return v.ToString(v >= 10 ? "0.0" : "0.00", CultureInfo.InvariantCulture) + " " + SizeUnits[unit];
+        }
+
+        // Takes the fraction, not the percentage: every caller here has a
+        // used/total ratio in hand and rounding it twice is how a bar reads 100%
+        // while a byte is still free.
+        public static string FormatPercent(double fraction)
+        {
+            if (fraction < 0 || double.IsNaN(fraction)) fraction = 0;
+            if (fraction > 1) fraction = 1;
+            return (fraction * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
+        }
+
+        // A dash rather than 01.01.0001 for a file whose timestamp the filesystem
+        // would not give us: a sortable date column must not imply that a file is
+        // four centuries older than the disk it sits on.
+        public static string FormatDate(DateTime when)
+        {
+            if (when < new DateTime(1980, 1, 1)) return "—";
+            return when.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
         }
 
         public static string FormatCount(long n)

@@ -4,7 +4,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     delegate void IconDraw(Graphics g, RectangleF r, Color c);
 
@@ -40,14 +40,15 @@ namespace WindowsStalker
             }
         }
 
-        // The radiation trefoil of the app mark, as a glyph. Deliberately the
-        // very same path the icon resource is built from, so the thing on the
-        // taskbar and the thing on the dashboard are one mark and not two
-        // drawings that merely resemble each other.
-        public static void Radiation(Graphics g, RectangleF r, Color c)
+        // The app mark as a glyph. Deliberately the very same path the icon
+        // resource is built from, so the thing on the taskbar and the thing on
+        // the dashboard are one mark and not two drawings that merely resemble
+        // each other. Named for its role rather than its shape, so the next time
+        // the mark changes only src/Branding.cs has to.
+        public static void Mark(Graphics g, RectangleF r, Color c)
         {
             float s = Math.Min(r.Width, r.Height);
-            using (var path = Brand.Trefoil(r.X + r.Width / 2f, r.Y + r.Height / 2f, s * 0.5f))
+            using (var path = Brand.AppMark(r.X + r.Width / 2f, r.Y + r.Height / 2f, s * 0.46f))
             using (var b = new SolidBrush(c))
                 g.FillPath(b, path);
         }

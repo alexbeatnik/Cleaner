@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class ElevatedJobTests
     {

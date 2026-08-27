@@ -1,6 +1,6 @@
 // The installed-programs list: the same inventory Settings → Apps shows, read
 // straight from the three Uninstall keys, plus a shortcut to each program's own
-// uninstaller. WindowsStalker never deletes another program's files itself.
+// uninstaller. Cleaner never deletes another program's files itself.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,7 +10,7 @@ using System.IO;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     sealed class InstalledApp
     {
@@ -29,6 +29,12 @@ namespace WindowsStalker
     {
         readonly List<InstalledApp> installedApps = new List<InstalledApp>();
 
+        // Column indexes of the apps list, which are also the sort keys.
+        const int AppsColName = 0, AppsColPublisher = 1, AppsColVersion = 2,
+                  AppsColSize = 3, AppsColInstalled = 4;
+        int appsSort = AppsColName;
+        bool appsSortDesc;
+
         void RefreshApps()
         {
             installedApps.Clear();
@@ -40,11 +46,7 @@ namespace WindowsStalker
             ReadUninstallKey(Registry.CurrentUser,
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall", seen);
 
-            installedApps.Sort(delegate(InstalledApp a, InstalledApp b)
-            {
-                return string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
-            });
-            FilterApps();
+            FilterApps();   // which sorts by whatever column the user picked
         }
 
         void ReadUninstallKey(RegistryKey hive, string path, HashSet<string> seen)
@@ -114,9 +116,71 @@ namespace WindowsStalker
             return DateTime.MinValue;
         }
 
+        // Clicking a column header. The first click on a column picks the
+        // direction that column is actually useful in — biggest and most recently
+        // installed first, everything else A to Z — and each further click flips
+        // it. The filter box is left alone: re-sorting is not a new search.
+        void SortAppsBy(int column)
+        {
+            if (column < AppsColName || column > AppsColInstalled) return;
+            if (column == appsSort) appsSortDesc = !appsSortDesc;
+            else
+            {
+                appsSort = column;
+                appsSortDesc = column == AppsColSize || column == AppsColInstalled;
+            }
+            FilterApps();
+        }
+
+        void SortInstalledApps()
+        {
+            int column = appsSort;
+            bool descending = appsSortDesc;
+            installedApps.Sort(delegate(InstalledApp a, InstalledApp b)
+            {
+                int cmp;
+                if (column == AppsColSize) cmp = a.SizeKb.CompareTo(b.SizeKb);
+                else if (column == AppsColInstalled) cmp = a.Installed.CompareTo(b.Installed);
+                else if (column == AppsColPublisher)
+                    cmp = string.Compare(a.Publisher, b.Publisher, StringComparison.CurrentCultureIgnoreCase);
+                else if (column == AppsColVersion)
+                    cmp = CompareVersions(a.Version, b.Version);
+                else cmp = string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
+                if (descending) cmp = -cmp;
+                // Name is both the default key and every other key's tie-break:
+                // half the entries share a publisher, plenty report no size and
+                // no install date at all, and List.Sort is unstable — without
+                // this those rows would shuffle on every click. It is deliberately
+                // the primary above rather than only here, or a descending sort by
+                // name would flip nothing and do exactly what ascending did.
+                if (cmp == 0) cmp = string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
+                return cmp;
+            });
+        }
+
+        // DisplayVersion is free-form text, so "1.10" has to sort above "1.9"
+        // without a malformed value throwing: each dotted run of digits is
+        // compared numerically and anything else falls back to plain text.
+        internal static int CompareVersions(string a, string b)
+        {
+            string[] left = (a ?? "").Split('.'), right = (b ?? "").Split('.');
+            for (int i = 0; i < Math.Max(left.Length, right.Length); i++)
+            {
+                string l = i < left.Length ? left[i] : "";
+                string r = i < right.Length ? right[i] : "";
+                long ln, rn;
+                int cmp = long.TryParse(l, out ln) && long.TryParse(r, out rn)
+                    ? ln.CompareTo(rn)
+                    : string.Compare(l, r, StringComparison.OrdinalIgnoreCase);
+                if (cmp != 0) return cmp;
+            }
+            return 0;
+        }
+
         void FilterApps()
         {
             if (appsList == null || appsList.IsDisposed) return;
+            SortInstalledApps();
             string filter = appsSearch == null ? "" : appsSearch.Text.Trim();
             appsList.BeginUpdate();
             appsList.Items.Clear();
@@ -139,6 +203,7 @@ namespace WindowsStalker
             }
             appsList.EndUpdate();
             appsList.Refit();
+            appsList.SetSort(appsSort, appsSortDesc);
 
             long totalKb = 0;
             foreach (InstalledApp app in installedApps) totalKb += app.SizeKb;

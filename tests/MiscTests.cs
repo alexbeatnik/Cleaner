@@ -4,7 +4,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class ScheduleTests
     {
@@ -112,6 +112,20 @@ namespace WindowsStalker.Tests
             Assert.Equal(DateTime.MinValue, MainForm.ParseInstallDate("14.03.2026"), "some installers write junk");
             Assert.Equal(DateTime.MinValue, MainForm.ParseInstallDate(null), "and some write nothing");
             Assert.Equal(DateTime.MinValue, MainForm.ParseInstallDate("20261340"), "month 13, day 40");
+        }
+
+        // The version column is sortable, and DisplayVersion is whatever the
+        // installer felt like writing — the comparison has to order the numeric
+        // case properly and survive everything else.
+        public static void TestVersionOrdering()
+        {
+            Assert.True(MainForm.CompareVersions("1.9", "1.10") < 0, "1.10 is newer than 1.9, not older");
+            Assert.True(MainForm.CompareVersions("2.0", "10.0") < 0, "and 10 is newer than 2");
+            Assert.Equal(0, MainForm.CompareVersions("1.2.3", "1.2.3"), "identical versions tie");
+            Assert.True(MainForm.CompareVersions("1.2", "1.2.1") < 0, "a missing part counts as lower");
+            Assert.True(MainForm.CompareVersions("1.0.0-beta", "1.0.0") > 0,
+                "a non-numeric part falls back to text rather than throwing");
+            Assert.Equal(0, MainForm.CompareVersions(null, ""), "no version at all is not a crash");
         }
     }
 

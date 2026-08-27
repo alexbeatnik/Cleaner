@@ -10,15 +10,15 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {
-        const string AppName = "WindowsStalker";
+        const string AppName = "Cleaner";
         static readonly string AppVersion =
             Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
         const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string RunValueName = "WindowsStalker";
+        const string RunValueName = "Cleaner";
 
         // ---------- paths and persisted state ----------
 
@@ -40,6 +40,7 @@ namespace WindowsStalker
         int schedMode;             // auto clean: 0 = off, 1 = daily, 2 = weekly
         DateTime lastScheduledClean;
         Timer schedTimer;
+        Timer driveTimer;          // keeps the dashboard storage card off stale numbers
         bool confirmBeforeClean = true;
         bool autostartInitialized;
         bool modeAsked;            // the first-run portable-vs-installed question
@@ -118,7 +119,7 @@ namespace WindowsStalker
 
         // One instance per user session + a "show window" message to it
         static System.Threading.Mutex singleInstanceMutex;
-        static readonly int WmShow = NativeMethods.RegisterWindowMessage("WindowsStalker_Show_v1");
+        static readonly int WmShow = NativeMethods.RegisterWindowMessage("Cleaner_Show_v1");
 
         // ---------- entry point ----------
 
@@ -150,7 +151,7 @@ namespace WindowsStalker
             }
 
             bool createdNew;
-            singleInstanceMutex = new System.Threading.Mutex(true, "Local\\WindowsStalker_SingleInstance_v1", out createdNew);
+            singleInstanceMutex = new System.Threading.Mutex(true, "Local\\Cleaner_SingleInstance_v1", out createdNew);
             if (!createdNew)
             {
                 // The broadcast reaches the instance while its window is visible or
@@ -222,6 +223,10 @@ namespace WindowsStalker
                 WindowState = FormWindowState.Normal;
                 Activate();
                 BringToFront();
+                // The drive timer skips ticks while the window is hidden, so a
+                // window coming back from the tray would show whatever the card
+                // said when it went away until the next tick.
+                RefreshDrives();
             }
             catch { }
         }

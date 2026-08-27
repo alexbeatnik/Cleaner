@@ -8,7 +8,7 @@ using System.IO;
 using System.Text;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {
@@ -26,7 +26,7 @@ namespace WindowsStalker
             {
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    @"Programs\WindowsStalker");
+                    @"Programs\Cleaner");
             }
         }
 
@@ -96,7 +96,7 @@ namespace WindowsStalker
         {
             if (settingsPath == null) return;
             var sb = new StringBuilder();
-            sb.AppendLine("# WindowsStalker settings");
+            sb.AppendLine("# Cleaner settings");
             sb.AppendLine("lang=" + (Lang.Current == Lang.Language.Ukrainian ? "uk" : "en"));
             sb.AppendLine("schedmode=" + schedMode.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("confirm=" + (confirmBeforeClean ? "1" : "0"));

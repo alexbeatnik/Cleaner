@@ -13,7 +13,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     enum StartupSource { HkcuRun, HklmRun, HklmRun32, FolderUser, FolderCommon }
 

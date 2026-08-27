@@ -4,7 +4,7 @@
 using System;
 using System.IO;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class UpdateScheduleTests
     {

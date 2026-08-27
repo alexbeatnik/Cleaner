@@ -1,5 +1,5 @@
 // Per-user install and uninstall. No administrator rights anywhere: the app
-// copies itself into %LocalAppData%\Programs\WindowsStalker, writes per-user
+// copies itself into %LocalAppData%\Programs\Cleaner, writes per-user
 // shortcuts and a per-user Uninstall key, and that is the whole installation.
 using System;
 using System.Diagnostics;
@@ -9,12 +9,12 @@ using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {
         const string UninstallKeyPath =
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WindowsStalker";
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Cleaner";
 
         void InstallOrUninstall()
         {
@@ -88,7 +88,7 @@ namespace WindowsStalker
                                 MessageBox.Show(Lang.T("install.failed") + error, AppName,
                                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                             else
-                                try { Process.Start(Path.Combine(InstallDir, "WindowsStalker.exe")); }
+                                try { Process.Start(Path.Combine(InstallDir, "Cleaner.exe")); }
                                 catch { }
                             Application.ExitThread();
                         });
@@ -110,7 +110,7 @@ namespace WindowsStalker
             string dst = InstallDir;
             Directory.CreateDirectory(dst);
 
-            string dstExe = Path.Combine(dst, "WindowsStalker.exe");
+            string dstExe = Path.Combine(dst, "Cleaner.exe");
             if (!string.Equals(Application.ExecutablePath, dstExe, StringComparison.OrdinalIgnoreCase))
                 File.Copy(Application.ExecutablePath, dstExe, true);
 
@@ -126,32 +126,35 @@ namespace WindowsStalker
             try
             {
                 CreateShortcut(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Programs), "WindowsStalker.lnk"), dstExe, dst);
+                    Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Cleaner.lnk"), dstExe, dst);
                 CreateShortcut(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "WindowsStalker.lnk"), dstExe, dst);
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Cleaner.lnk"), dstExe, dst);
             }
             catch { }
 
-            using (RegistryKey k = Registry.CurrentUser.CreateSubKey(UninstallKeyPath))
-            {
-                if (k != null)
-                {
-                    k.SetValue("DisplayName", AppName);
-                    k.SetValue("DisplayVersion", AppVersion);
-                    k.SetValue("Publisher", "Oleksii Poliakov");
-                    k.SetValue("DisplayIcon", dstExe);
-                    k.SetValue("InstallLocation", dst);
-                    k.SetValue("UninstallString", "\"" + dstExe + "\" --uninstall");
-                    k.SetValue("NoModify", 1, RegistryValueKind.DWord);
-                    k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
-                    k.SetValue("EstimatedSize", 400, RegistryValueKind.DWord); // KB
-                }
-            }
+            WriteUninstallKey(dstExe, dst);
 
             // If autostart was enabled from the old location, repoint it
             using (RegistryKey k = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
                 if (k != null && k.GetValue(RunValueName) != null)
                     k.SetValue(RunValueName, AutostartCommand(dstExe));
+        }
+
+        static void WriteUninstallKey(string dstExe, string dst)
+        {
+            using (RegistryKey k = Registry.CurrentUser.CreateSubKey(UninstallKeyPath))
+            {
+                if (k == null) return;
+                k.SetValue("DisplayName", AppName);
+                k.SetValue("DisplayVersion", AppVersion);
+                k.SetValue("Publisher", "Oleksii Poliakov");
+                k.SetValue("DisplayIcon", dstExe);
+                k.SetValue("InstallLocation", dst);
+                k.SetValue("UninstallString", "\"" + dstExe + "\" --uninstall");
+                k.SetValue("NoModify", 1, RegistryValueKind.DWord);
+                k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+                k.SetValue("EstimatedSize", 400, RegistryValueKind.DWord); // KB
+            }
         }
 
         static void CarryOverFile(string src, string dst)
@@ -175,9 +178,9 @@ namespace WindowsStalker
             try
             {
                 TryDelete(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Programs), "WindowsStalker.lnk"));
+                    Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Cleaner.lnk"));
                 TryDelete(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "WindowsStalker.lnk"));
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Cleaner.lnk"));
 
                 using (RegistryKey k = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
                     if (k != null && k.GetValue(RunValueName) != null) k.DeleteValue(RunValueName, false);

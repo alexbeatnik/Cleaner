@@ -5,7 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     static class NativeMethods
     {
@@ -46,46 +46,57 @@ namespace WindowsStalker
         // on anything older the call simply does nothing.
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr hWnd, string app, string idList);
+        // A ListView's header is its own child window, so Invalidate() on the
+        // control never reaches it — without this the sort arrow only appeared
+        // once something else happened to force the header to repaint.
+        public const int LVM_GETHEADER = 0x1000 + 31;
+        [DllImport("user32.dll")]
+        public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")]
+        public static extern bool InvalidateRect(IntPtr hWnd, IntPtr rect, bool erase);
     }
 
-    // Amber CRT — the wasteland terminal look, carried over from WastelandNext's
-    // renderer palette (src/renderer/styles.css :root) so the two apps read as
-    // the same machine: near-black glass, phosphor amber, dashed rules, square
-    // corners and scanlines. Red stays reserved for genuine warnings.
+    // Neutral dark UI, shared with the AV project next door (../AV/src/Theme.cs)
+    // so the two tools read as one suite: navy-tinted near-black surfaces, a
+    // single blue accent, rounded cards with a soft drop shadow and Segoe UI
+    // throughout. This replaced an amber CRT skin - phosphor text, scanlines over
+    // every surface, dashed rules, square corners and letter-spaced monospace -
+    // which read as a prop rather than as a maintenance tool. Red stays reserved
+    // for genuine warnings.
     static class Theme
     {
-        public static readonly Color Bg        = Color.FromArgb(5, 5, 5);       // --bg
-        public static readonly Color Card      = Color.FromArgb(10, 10, 10);    // --bg-panel
-        public static readonly Color CardLine  = Color.FromArgb(90, 61, 0);     // --amber-faint
+        public static readonly Color Bg        = Color.FromArgb(16, 18, 24);    // window background
+        public static readonly Color Card      = Color.FromArgb(30, 33, 42);    // cards
+        public static readonly Color CardLine  = Color.FromArgb(48, 52, 64);    // hairline card border
         // Secondary buttons sitting ON a card: filling them with Card makes them
         // vanish into it and read as plain labels, so they get their own tone.
-        public static readonly Color Subtle    = Color.FromArgb(26, 22, 14);    // --summary-bg, warmed
-        public static readonly Color LogBg     = Color.FromArgb(0, 0, 0);       // --bg-deep
-        public static readonly Color Text      = Color.FromArgb(255, 176, 0);   // --amber
-        public static readonly Color Muted     = Color.FromArgb(153, 106, 0);   // --amber-dim
-        public static readonly Color Accent    = Color.FromArgb(255, 176, 0);   // --amber
-        public static readonly Color AccentHot = Color.FromArgb(255, 208, 96);  // --amber-bright
-        public static readonly Color Good      = Color.FromArgb(102, 204, 102); // --ok
-        public static readonly Color Warn      = Color.FromArgb(255, 96, 32);   // --warn
-        public static readonly Color Danger    = Color.FromArgb(216, 68, 47);   // --bar-life
-        public static readonly Color DangerHot = Color.FromArgb(240, 96, 74);
-        public static readonly Color Disabled  = Color.FromArgb(112, 78, 8);
-        public static readonly Color Btn       = Color.FromArgb(51, 51, 51);    // --btn-bg
-        public static readonly Color BtnHot    = Color.FromArgb(68, 68, 68);    // --btn-bg-hover
-        public static readonly Color BtnText   = Color.FromArgb(255, 176, 0);
-        // Text laid ON a filled amber block. White on amber is unreadable; the
-        // terminal cuts its bright fills out of the background colour instead.
-        public static readonly Color OnAccent  = Color.FromArgb(8, 6, 2);
-        public const int Radius = 0; // --radius: 0 — nothing on a terminal is rounded
-        public const float Track = 1.4f; // letter-spacing, the CSS 0.12em in pixels
+        public static readonly Color Subtle    = Color.FromArgb(44, 48, 60);
+        public static readonly Color LogBg     = Color.FromArgb(12, 13, 18);    // list/log background
+        public static readonly Color Text      = Color.FromArgb(232, 234, 240);
+        public static readonly Color Muted     = Color.FromArgb(148, 155, 170);
+        public static readonly Color Accent    = Color.FromArgb(66, 133, 255);  // blue
+        public static readonly Color AccentHot = Color.FromArgb(108, 160, 255);
+        public static readonly Color Good      = Color.FromArgb(48, 199, 110);
+        public static readonly Color Warn      = Color.FromArgb(232, 197, 71);
+        public static readonly Color Danger    = Color.FromArgb(239, 68, 68);
+        public static readonly Color DangerHot = Color.FromArgb(248, 113, 113);
+        public static readonly Color Disabled  = Color.FromArgb(92, 97, 108);   // clearly gray, not just faded
+        public static readonly Color Btn       = Color.FromArgb(216, 219, 226); // light buttons
+        public static readonly Color BtnHot    = Color.FromArgb(233, 235, 240);
+        public static readonly Color BtnText   = Color.FromArgb(51, 54, 62);
+        // Text laid ON a filled accent or danger block: both are saturated enough
+        // to carry white, which the amber fills they replaced were not.
+        public static readonly Color OnAccent  = Color.FromArgb(255, 255, 255);
+        public const int Radius = 12;      // card corner radius
+        public const int RadiusSmall = 4;  // buttons, checkboxes, meter cells
 
-        // The terminal monospace stack, first one installed wins. Mono glyphs run
-        // wider than Segoe UI at the same point size and this window is a fixed
-        // 1024x706 of hand-placed controls, so the compensation is one knob here
-        // rather than a fudged number at each of the ~40 call sites.
-        const float FontScale = 0.88f;
-        static readonly string[] MonoStack =
-            { "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Courier New" };
+        // Segoe UI on any Windows this app runs on; the rest is insurance. The
+        // scale knob stays at 1 - the hand-placed 1024x706 layout was tuned
+        // against a monospace face at 0.88, and Segoe UI at full size measures to
+        // very nearly the same width, so the pages line up without retuning.
+        const float FontScale = 1f;
+        static readonly string[] UiStack =
+            { "Segoe UI", "Segoe UI Variable Text", "Tahoma", "Arial" };
         static string family;
 
         public static string Family
@@ -94,8 +105,8 @@ namespace WindowsStalker
             {
                 if (family == null)
                 {
-                    family = "Courier New"; // on every Windows since 3.1
-                    foreach (string name in MonoStack)
+                    family = "Arial"; // on every Windows since 3.1
+                    foreach (string name in UiStack)
                     {
                         try
                         {
@@ -137,142 +148,68 @@ namespace WindowsStalker
             return p;
         }
 
-        static TextureBrush scanlines;
-
-        // CRT scanlines: one darkened row in every three, from a cached 1x3
-        // texture — cheap enough to lay over every surface on every paint.
-        // phase is the surface screen Y, so the lines stay in step across control
-        // boundaries instead of restarting at each control origin.
-        public static void Scanlines(Graphics g, Rectangle r, int phase)
-        {
-            if (scanlines == null)
-            {
-                var tile = new Bitmap(1, 3);
-                tile.SetPixel(0, 2, Color.FromArgb(48, 0, 0, 0));
-                scanlines = new TextureBrush(tile);
-            }
-            scanlines.ResetTransform();
-            scanlines.TranslateTransform(0, -(phase % 3));
-            g.FillRectangle(scanlines, r);
-        }
-
-        // Clear a control to a flat colour and lay the scanlines over it. The
-        // handle exists by paint time, so PointToScreen is safe here.
+        // Clears a control to a flat colour. Kept as a named call rather than
+        // inlined into every OnPaint because this is where the scanline overlay
+        // used to be laid over the fill, and it is the seam to reach for if the
+        // surfaces ever need texture again.
         public static void Surface(Control c, Graphics g, Color back)
         {
             g.Clear(back);
-            Scanlines(g, c.ClientRectangle, Phase(c));
         }
 
-        public static int Phase(Control c)
+        // Elevated card: a soft drop shadow under the panel, the fill, a hairline
+        // border and a 1px top highlight - depth on a dark background. Drawn
+        // inside the control's own bounds, leaving room for the shadow, and the
+        // rectangle keeps the inset the hand-placed page layouts were tuned to.
+        public static void PaintCard(Graphics g, int w, int h)
         {
-            try { return c.PointToScreen(Point.Empty).Y; }
-            catch { return 0; }
-        }
-
-        public static void PaintCard(Graphics g, int w, int h) { PaintCard(g, w, h, 0); }
-
-        // Panel surface: a flat slab, scanlines, a dashed amber rule around it and
-        // bright corner brackets. No drop shadow and no rounding — the terminal
-        // has no depth, it has phosphor and hard edges. The rectangle keeps the
-        // old shadow inset so the hand-placed page layouts do not shift.
-        public static void PaintCard(Graphics g, int w, int h, int phase)
-        {
-            var r = new Rectangle(1, 0, w - 4, h - 6);
+            var r = new RectangleF(1.5f, 0.5f, w - 4, h - 6);
             if (r.Width <= 0 || r.Height <= 0) return;
             SmoothingMode was = g.SmoothingMode;
-            g.SmoothingMode = SmoothingMode.None; // 1px rules go blurry under AA
-            using (var b = new SolidBrush(Card)) g.FillRectangle(b, r);
-            Region clip = g.Clip;
-            g.SetClip(r);
-            Scanlines(g, r, phase);
-            g.Clip = clip;
-            using (var pen = new Pen(CardLine))
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            for (int i = 1; i <= 4; i++)
+                using (var path = Round(new RectangleF(r.X, r.Y + i, r.Width, r.Height), Radius))
+                using (var b = new SolidBrush(Color.FromArgb(13, 0, 0, 0)))
+                    g.FillPath(b, path);
+            using (var path = Round(r, Radius))
             {
-                pen.DashStyle = DashStyle.Dash;
-                g.DrawRectangle(pen, r.X, r.Y, r.Width - 1, r.Height - 1);
+                using (var b = new SolidBrush(Card)) g.FillPath(b, path);
+                using (var pen = new Pen(CardLine)) g.DrawPath(pen, path);
             }
-            Brackets(g, r, Muted, 12);
+            using (var hl = new Pen(Color.FromArgb(16, 255, 255, 255)))
+                g.DrawLine(hl, r.X + Radius, r.Y + 1, r.Right - Radius, r.Y + 1);
             g.SmoothingMode = was;
         }
 
-        // The HUD framing every panel in the wasteland UI wears: an L at each
-        // corner, solid where the border itself is dashed.
-        public static void Brackets(Graphics g, Rectangle r, Color c, int leg)
-        {
-            int x0 = r.X, y0 = r.Y, x1 = r.Right - 1, y1 = r.Bottom - 1;
-            if (r.Width < leg * 3 || r.Height < leg * 2) return;
-            using (var pen = new Pen(c))
-            {
-                g.DrawLines(pen, new Point[] { new Point(x0, y0 + leg), new Point(x0, y0), new Point(x0 + leg, y0) });
-                g.DrawLines(pen, new Point[] { new Point(x1 - leg, y0), new Point(x1, y0), new Point(x1, y0 + leg) });
-                g.DrawLines(pen, new Point[] { new Point(x1, y1 - leg), new Point(x1, y1), new Point(x1 - leg, y1) });
-                g.DrawLines(pen, new Point[] { new Point(x0 + leg, y1), new Point(x0, y1), new Point(x0, y1 - leg) });
-            }
-        }
-
-        // Letter-spaced text, the 0.12em tracking of the terminal headings. GDI+
-        // has no such setting, so the run is drawn a character at a time;
-        // MeasureTracked is the matching width, so auto-sized controls agree with
-        // what actually gets painted.
+        // Label drawing. These wrapped a hand-rolled letter-spacing routine that
+        // stepped by one monospace advance per glyph - correct for the terminal
+        // face, nonsense for a proportional one - so they are now thin wrappers
+        // that keep the call sites, and the auto-sizing controls that have to
+        // agree with what actually gets painted, reading the same.
         const TextFormatFlags Plain = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
 
-        // One cell of the grid. Every glyph in a monospace face has the same
-        // advance, so ten of them measured together and divided gives it without
-        // the padding TextRenderer adds once per measuring call — charging that
-        // padding per character is what would otherwise triple the tracking.
-        const string Ruler = "MMMMMMMMMM";
-
-        static float Advance(Font f)
-        {
-            return TextRenderer.MeasureText(Ruler, f, Size.Empty, Plain).Width / 10f;
-        }
-
-        public static void DrawTracked(Graphics g, string s, Font f, Point at, Color c, float track)
-        {
-            if (string.IsNullOrEmpty(s)) return;
-            float step = Advance(f) + track;
-            float x = at.X;
-            for (int i = 0; i < s.Length; i++, x += step)
-                TextRenderer.DrawText(g, s.Substring(i, 1), f, new Point((int)Math.Round(x), at.Y), c, Plain);
-        }
-
-        public static int MeasureTracked(string s, Font f, float track)
+        public static int MeasureLabel(string s, Font f)
         {
             if (string.IsNullOrEmpty(s)) return 0;
-            return (int)Math.Ceiling(s.Length * (Advance(f) + track) - track);
+            return TextRenderer.MeasureText(s, f, Size.Empty, Plain).Width;
         }
 
-        // Tracked text centred in a box, and the same left-aligned — for the
-        // buttons and tabs whose labels are set in caps. A label too wide to be
-        // tracked falls back to the plain renderer, which can at least ellipsise
-        // it: DrawTracked would happily spill outside the control.
-        public static void DrawTrackedCentered(Graphics g, string s, Font f, Rectangle r, Color c, float track)
+        public static void DrawLabel(Graphics g, string s, Font f, Point at, Color c)
         {
-            int w = MeasureTracked(s, f, track);
-            if (w > r.Width)
-            {
-                TextRenderer.DrawText(g, s, f, r, c, TextFormatFlags.HorizontalCenter
-                    | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-                return;
-            }
-            DrawTracked(g, s, f, new Point(r.X + (r.Width - w) / 2, r.Y + (r.Height - LineHeight(g, f)) / 2), c, track);
+            if (string.IsNullOrEmpty(s)) return;
+            TextRenderer.DrawText(g, s, f, at, c, Plain);
         }
 
-        public static void DrawTrackedLeft(Graphics g, string s, Font f, Rectangle r, Color c, float track)
+        public static void DrawLabelCentered(Graphics g, string s, Font f, Rectangle r, Color c)
         {
-            if (MeasureTracked(s, f, track) > r.Width)
-            {
-                TextRenderer.DrawText(g, s, f, r, c, TextFormatFlags.Left
-                    | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-                return;
-            }
-            DrawTracked(g, s, f, new Point(r.X, r.Y + (r.Height - LineHeight(g, f)) / 2), c, track);
+            TextRenderer.DrawText(g, s, f, r, c, TextFormatFlags.HorizontalCenter
+                | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
 
-        static int LineHeight(Graphics g, Font f)
+        public static void DrawLabelLeft(Graphics g, string s, Font f, Rectangle r, Color c)
         {
-            return TextRenderer.MeasureText(g, "X", f, Size.Empty, Plain).Height;
+            TextRenderer.DrawText(g, s, f, r, c, TextFormatFlags.Left
+                | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
 
         [DllImport("dwmapi.dll")]

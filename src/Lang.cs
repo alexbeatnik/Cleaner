@@ -4,7 +4,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     static class Lang
     {
@@ -75,9 +75,11 @@ namespace WindowsStalker
             A("col.version", "Version", "Версія");
             A("col.installed", "Installed", "Встановлено");
             A("col.path", "Path", "Шлях");
+            A("col.modified", "Modified", "Змінено");
             A("col.time", "Time", "Час");
             A("col.event", "Event", "Подія");
             A("drive.freeOf", "free of", "вільно з");
+            A("drive.used", "used", "зайнято");
             A("common.never", "never", "ніколи");
             A("common.cancelled", "Cancelled.", "Скасовано.");
             A("common.selected", "selected", "вибрано");
@@ -289,12 +291,12 @@ namespace WindowsStalker
             A("set.rules", "Known locations", "Відомих розташувань");
             A("set.autoClean", "Auto clean", "Автоочищення");
             A("btn.installApp", "Install for this user", "Встановити для цього користувача");
-            A("btn.uninstallApp", "Uninstall WindowsStalker", "Видалити WindowsStalker");
+            A("btn.uninstallApp", "Uninstall Cleaner", "Видалити Cleaner");
             A("btn.openLog", "Open the log", "Відкрити журнал");
             A("badge.installed", "✓ Installed", "✓ Встановлено");
             A("about.text",
-                "WindowsStalker {0}\r\nDisk cleanup and system tune-up for Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0",
-                "WindowsStalker {0}\r\nОчищення диска та налаштування системи для Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0");
+                "Cleaner {0}\r\nDisk cleanup and system tune-up for Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0",
+                "Cleaner {0}\r\nОчищення диска та налаштування системи для Windows.\r\nCopyright 2026 Oleksii Poliakov — Apache License 2.0");
 
             // ---------- automatic updates ----------
             A("set.autoUpdate", "Update automatically from GitHub", "Оновлювати автоматично з GitHub");
@@ -306,6 +308,8 @@ namespace WindowsStalker
             A("update.checking", "Checking GitHub for a newer version…",
                                  "Перевіряю GitHub на новішу версію…");
             A("update.upToDate", "Version {0} is the latest one.", "Версія {0} — найновіша.");
+            A("update.noRelease", "No published release yet — this build is the newest there is.",
+                "Опублікованих релізів ще немає — ця збірка найновіша.");
             A("update.failed", "Could not check for updates. Check the connection and try again.",
                                "Не вдалося перевірити оновлення. Перевірте з'єднання і спробуйте ще раз.");
             A("update.busy", "Finish the job in progress first, then check again.",
@@ -314,8 +318,8 @@ namespace WindowsStalker
                                    "Оновлюю до {0} — програма перезапуститься за кілька секунд…");
 
             // ---------- about dialog ----------
-            A("btn.about", "ABOUT WINDOWSSTALKER", "ПРО WINDOWSSTALKER");
-            A("about.title", "About WindowsStalker", "Про WindowsStalker");
+            A("btn.about", "About Cleaner", "Про Cleaner");
+            A("about.title", "About Cleaner", "Про Cleaner");
             // no "&" in these: a Label eats it as a mnemonic marker
             A("about.version", "Version {0} — free, open source, Apache 2.0 license",
                                "Версія {0} — безкоштовна, відкритий код, ліцензія Apache 2.0");
@@ -363,17 +367,17 @@ namespace WindowsStalker
                               "Крок з підвищеними правами не завершився — ці елементи залишились на місці.");
             A("admin.declined", "Skipped the items that need administrator rights.",
                                 "Пропущено елементи, що потребують прав адміністратора.");
-            A("install.title", "WindowsStalker — Setup", "WindowsStalker — встановлення");
-            A("install.installing", "Installing WindowsStalker…", "Встановлюю WindowsStalker…");
+            A("install.title", "Cleaner — Setup", "Cleaner — встановлення");
+            A("install.installing", "Installing Cleaner…", "Встановлюю Cleaner…");
             A("install.failed", "Installation failed:\r\n", "Не вдалося встановити:\r\n");
-            A("uninstall.confirm", "Remove WindowsStalker from this user account?", "Видалити WindowsStalker з цього облікового запису?");
-            A("uninstall.done", "WindowsStalker has been removed.", "WindowsStalker видалено.");
+            A("uninstall.confirm", "Remove Cleaner from this user account?", "Видалити Cleaner з цього облікового запису?");
+            A("uninstall.done", "Cleaner has been removed.", "Cleaner видалено.");
             A("uninstall.error", "Removal error: ", "Помилка видалення: ");
             A("msg.firstRunMode",
-                "Run WindowsStalker from where it is now, or install it for this user?\r\n\r\nNow: {0}\r\nInstalled: {1}\r\n\r\nInstalling adds a Start menu entry and lets it start with Windows. No administrator rights are needed either way.",
-                "Запускати WindowsStalker звідси чи встановити його для цього користувача?\r\n\r\nЗараз: {0}\r\nПісля встановлення: {1}\r\n\r\nВстановлення додає пункт у меню «Пуск» і дозволяє запуск разом із Windows. Права адміністратора не потрібні в жодному разі.");
-            A("msg.installedRestart", "WindowsStalker is installed. The installed copy is starting now.",
-                                      "WindowsStalker встановлено. Зараз запуститься встановлена копія.");
+                "Run Cleaner from where it is now, or install it for this user?\r\n\r\nNow: {0}\r\nInstalled: {1}\r\n\r\nInstalling adds a Start menu entry and lets it start with Windows. No administrator rights are needed either way.",
+                "Запускати Cleaner звідси чи встановити його для цього користувача?\r\n\r\nЗараз: {0}\r\nПісля встановлення: {1}\r\n\r\nВстановлення додає пункт у меню «Пуск» і дозволяє запуск разом із Windows. Права адміністратора не потрібні в жодному разі.");
+            A("msg.installedRestart", "Cleaner is installed. The installed copy is starting now.",
+                                      "Cleaner встановлено. Зараз запуститься встановлена копія.");
         }
     }
 }

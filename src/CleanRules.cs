@@ -1,4 +1,4 @@
-// The junk catalog: what WindowsStalker knows how to clean, and where it lives.
+// The junk catalog: what Cleaner knows how to clean, and where it lives.
 // Rules are data, not code paths — the analyzer in MainForm.Cleaner.cs walks
 // this list, so adding a location means adding one entry here (plus its two
 // Lang strings) and nothing else.
@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     enum RuleKind
     {

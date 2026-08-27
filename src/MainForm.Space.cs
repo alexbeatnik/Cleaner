@@ -8,14 +8,40 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     sealed class SpaceEntry
     {
         public string Path;
+        public string Name;      // the file name, kept because the name sort reads it per comparison
         public long Size;
+        public DateTime Modified;
         public bool Selected;
         public bool Keep;   // the copy kept in a duplicate group: never deletable
+    }
+
+    // Rows are held as groups rather than as one flat list so sorting can
+    // reorder duplicate sets without tearing them apart: the copies in a set
+    // only mean anything next to each other, and the kept one has to stay at the
+    // top of its own group. A big-file scan is the same shape with one file per
+    // group and no header row.
+    sealed class SpaceGroup
+    {
+        public int Copies;       // 0 = a plain file row, no header above it
+        public long CopySize;
+        public readonly List<SpaceEntry> Items = new List<SpaceEntry>();
+
+        // Formatted at render time, not at scan time: a language switch has to
+        // retext these along with everything else on the page.
+        public string Header
+        {
+            get
+            {
+                return Copies > 0
+                    ? string.Format(Lang.T("space.dupGroup"), Copies, Util.FormatSize(CopySize))
+                    : null;
+            }
+        }
     }
 
     public partial class MainForm : Form
@@ -23,7 +49,13 @@ namespace WindowsStalker
         CancelFlag spaceCancel;
         bool spaceScanRunning;
         string spaceFolder;
+        readonly List<SpaceGroup> spaceGroups = new List<SpaceGroup>();
         readonly List<SpaceEntry> spaceEntries = new List<SpaceEntry>();
+
+        // Column indexes of the space list, which are also the sort keys.
+        const int SpaceColName = 0, SpaceColSize = 1, SpaceColDate = 2, SpaceColPath = 3;
+        int spaceSort = SpaceColSize;
+        bool spaceSortDesc = true;
 
         // Anything smaller is noise in a "what is eating my disk" list.
         const long MinBigFile = 50L * 1024 * 1024;
@@ -72,6 +104,7 @@ namespace WindowsStalker
             spaceCancel = new CancelFlag();
             CancelFlag cancel = spaceCancel;
             string root = SpaceFolder;
+            spaceGroups.Clear();
             spaceEntries.Clear();
             spaceList.Items.Clear();
             UpdateSpaceFolderLabel();
@@ -79,7 +112,7 @@ namespace WindowsStalker
 
             ThreadPool.QueueUserWorkItem(delegate
             {
-                var rows = new List<object>(); // string = group header, SpaceEntry = file
+                var rows = new List<SpaceGroup>();
                 string summary = "";
                 try
                 {
@@ -104,6 +137,7 @@ namespace WindowsStalker
         {
             public string Path;
             public long Size;
+            public DateTime Modified;
         }
 
         // One iterative walk shared by both tools. Reparse points are skipped so a
@@ -132,6 +166,10 @@ namespace WindowsStalker
                             var record = new FileRecord();
                             record.Path = file;
                             record.Size = info.Length;
+                            // Read here, where the FileInfo is already warm: the
+                            // date column would otherwise cost one stat call per
+                            // visible row every time the list is re-sorted.
+                            record.Modified = info.LastWriteTime;
                             result.Add(record);
                         }
                         catch { }
@@ -153,7 +191,11 @@ namespace WindowsStalker
             return result;
         }
 
-        string BuildBigFileRows(List<FileRecord> files, List<object> rows)
+        // Sorted biggest-first before the cap is applied, whatever the user has
+        // the list sorted by: MaxRows is "the 500 files eating the most space",
+        // not "the first 500 the walk happened to find". The chosen sort is
+        // applied afterwards, to those 500.
+        string BuildBigFileRows(List<FileRecord> files, List<SpaceGroup> rows)
         {
             files.Sort(delegate(FileRecord a, FileRecord b) { return b.Size.CompareTo(a.Size); });
             long total = 0;
@@ -162,20 +204,29 @@ namespace WindowsStalker
             foreach (FileRecord file in files)
             {
                 if (count >= MaxRows) break;
-                var entry = new SpaceEntry();
-                entry.Path = file.Path;
-                entry.Size = file.Size;
-                rows.Add(entry);
+                var group = new SpaceGroup();
+                group.Items.Add(NewEntry(file));
+                rows.Add(group);
                 count++;
             }
             return string.Format(Lang.T("space.bigFound"), files.Count,
                 Util.FormatSize(MinBigFile), Util.FormatSize(total));
         }
 
+        static SpaceEntry NewEntry(FileRecord file)
+        {
+            var entry = new SpaceEntry();
+            entry.Path = file.Path;
+            entry.Name = Path.GetFileName(file.Path);
+            entry.Size = file.Size;
+            entry.Modified = file.Modified;
+            return entry;
+        }
+
         // Three passes, cheapest first: group by size, then by a 64 KB prefix hash,
         // then by the full hash. Two multi-gigabyte files that merely share a size
         // are separated by the prefix pass without ever being read in full.
-        string BuildDuplicateRows(List<FileRecord> files, List<object> rows, CancelFlag cancel)
+        string BuildDuplicateRows(List<FileRecord> files, List<SpaceGroup> rows, CancelFlag cancel)
         {
             var bySize = new Dictionary<long, List<FileRecord>>();
             foreach (FileRecord file in files)
@@ -239,19 +290,24 @@ namespace WindowsStalker
             long reclaimable = 0;
             foreach (List<FileRecord> group in groups) reclaimable += group[0].Size * (group.Count - 1);
 
+            // MaxRows counts painted rows, headers included — the same budget the
+            // flat list had before groups existed.
+            int emitted = 0;
             foreach (List<FileRecord> group in groups)
             {
-                if (rows.Count >= MaxRows) break;
-                rows.Add(string.Format(Lang.T("space.dupGroup"), group.Count, Util.FormatSize(group[0].Size)));
+                if (emitted >= MaxRows) break;
+                emitted += group.Count + 1;
+                var row = new SpaceGroup();
+                row.Copies = group.Count;
+                row.CopySize = group[0].Size;
                 for (int i = 0; i < group.Count; i++)
                 {
-                    var entry = new SpaceEntry();
-                    entry.Path = group[i].Path;
-                    entry.Size = group[i].Size;
+                    SpaceEntry entry = NewEntry(group[i]);
                     entry.Keep = i == 0;          // one copy always survives
                     entry.Selected = i > 0;
-                    rows.Add(entry);
+                    row.Items.Add(entry);
                 }
+                rows.Add(row);
             }
             return string.Format(Lang.T("space.dupFound"), groups.Count, Util.FormatSize(reclaimable));
         }
@@ -279,35 +335,116 @@ namespace WindowsStalker
 
         // ---------- list ----------
 
-        void FillSpaceList(List<object> rows)
+        void FillSpaceList(List<SpaceGroup> rows)
         {
+            spaceGroups.Clear();
+            spaceGroups.AddRange(rows);
+            RenderSpaceList();
+        }
+
+        // Sorts the groups by the current key and repaints the list from them.
+        // Everything the user has ticked survives, because the rows are rebuilt
+        // from the same SpaceEntry objects the selection lives on.
+        void RenderSpaceList()
+        {
+            if (spaceList == null || spaceList.IsDisposed) return;
+            SortSpaceGroups();
             spaceEntries.Clear();
             spaceList.BeginUpdate();
             spaceList.Items.Clear();
-            foreach (object row in rows)
+            foreach (SpaceGroup group in spaceGroups)
             {
-                var header = row as string;
+                string header = group.Header;
                 if (header != null)
                 {
                     var headerItem = new ListViewItem(header);
                     headerItem.SubItems.Add("");
                     headerItem.SubItems.Add("");
+                    headerItem.SubItems.Add("");
                     headerItem.Tag = null;
                     spaceList.Items.Add(headerItem);
-                    continue;
                 }
-                var entry = (SpaceEntry)row;
-                spaceEntries.Add(entry);
-                var item = new ListViewItem(Path.GetFileName(entry.Path));
-                item.SubItems.Add(Util.FormatSize(entry.Size));
-                item.SubItems.Add(entry.Path);
-                item.Tag = entry;
-                if (entry.Keep) item.ForeColor = Theme.Good;
-                spaceList.Items.Add(item);
+                foreach (SpaceEntry entry in group.Items)
+                {
+                    spaceEntries.Add(entry);
+                    var item = new ListViewItem(entry.Name);
+                    item.SubItems.Add(Util.FormatSize(entry.Size));
+                    item.SubItems.Add(Util.FormatDate(entry.Modified));
+                    item.SubItems.Add(entry.Path);
+                    item.Tag = entry;
+                    if (entry.Keep) item.ForeColor = Theme.Good;
+                    spaceList.Items.Add(item);
+                }
             }
             spaceList.EndUpdate();
             spaceList.Refit();
+            spaceList.SetSort(spaceSort, spaceSortDesc);
             UpdateSpaceSummary();
+        }
+
+        // Clicking a column header. The first click on a column picks the
+        // direction that column is actually useful in — biggest and newest
+        // first, names and paths A to Z — and each further click flips it.
+        void SortSpaceBy(int column)
+        {
+            if (column < SpaceColName || column > SpaceColPath) return;
+            if (column == spaceSort) spaceSortDesc = !spaceSortDesc;
+            else
+            {
+                spaceSort = column;
+                spaceSortDesc = column == SpaceColSize || column == SpaceColDate;
+            }
+            RenderSpaceList();
+        }
+
+        // The sort is by group, never across groups: inside a duplicate set the
+        // copies keep the order the scan gave them, so the green kept copy stays
+        // at the top of its own set wherever that set lands.
+        void SortSpaceGroups()
+        {
+            int column = spaceSort;
+            bool descending = spaceSortDesc;
+            spaceGroups.Sort(delegate(SpaceGroup a, SpaceGroup b)
+            {
+                int cmp;
+                if (column == SpaceColSize) cmp = GroupSize(a).CompareTo(GroupSize(b));
+                else if (column == SpaceColDate) cmp = GroupDate(a).CompareTo(GroupDate(b));
+                else if (column == SpaceColPath)
+                    cmp = string.Compare(GroupPath(a), GroupPath(b), StringComparison.OrdinalIgnoreCase);
+                else cmp = string.Compare(GroupName(a), GroupName(b), StringComparison.OrdinalIgnoreCase);
+                if (descending) cmp = -cmp;
+                // List.Sort is unstable, so equal keys need a tie-break of their
+                // own — without one, re-sorting on the same column shuffles rows
+                // that compare equal for no reason the user can see.
+                if (cmp == 0) cmp = string.Compare(GroupPath(a), GroupPath(b), StringComparison.OrdinalIgnoreCase);
+                return cmp;
+            });
+        }
+
+        // A group's key is the strongest one it contains: a duplicate set is as
+        // big as one copy and as new as its newest copy.
+        static long GroupSize(SpaceGroup group)
+        {
+            long size = 0;
+            foreach (SpaceEntry entry in group.Items) if (entry.Size > size) size = entry.Size;
+            return size;
+        }
+
+        static DateTime GroupDate(SpaceGroup group)
+        {
+            DateTime when = DateTime.MinValue;
+            foreach (SpaceEntry entry in group.Items) if (entry.Modified > when) when = entry.Modified;
+            return when;
+        }
+
+        static string GroupName(SpaceGroup group)
+        {
+            return group.Items.Count > 0 ? group.Items[0].Name : "";
+        }
+
+        static string GroupPath(SpaceGroup group)
+        {
+            return group.Items.Count > 0 ? group.Items[0].Path : "";
         }
 
         void UpdateSpaceSummary()
@@ -366,19 +503,22 @@ namespace WindowsStalker
             LogLine(message);
             SetStatus(message);
 
-            for (int i = spaceEntries.Count - 1; i >= 0; i--)
+            // Pruned out of the groups rather than out of the ListView: the rows
+            // are rebuilt from the groups on every sort, so a file dropped only
+            // from the list would come straight back on the next header click.
+            for (int i = spaceGroups.Count - 1; i >= 0; i--)
             {
-                try { if (!File.Exists(spaceEntries[i].Path)) spaceEntries.RemoveAt(i); }
-                catch { }
+                List<SpaceEntry> items = spaceGroups[i].Items;
+                for (int j = items.Count - 1; j >= 0; j--)
+                {
+                    try { if (!File.Exists(items[j].Path)) items.RemoveAt(j); }
+                    catch { }
+                }
+                // A duplicate set down to its last copy is no longer a duplicate.
+                if (items.Count == 0 || (spaceGroups[i].Copies > 0 && items.Count < 2))
+                    spaceGroups.RemoveAt(i);
             }
-            for (int i = spaceList.Items.Count - 1; i >= 0; i--)
-            {
-                var entry = spaceList.Items[i].Tag as SpaceEntry;
-                if (entry == null) continue;
-                try { if (!File.Exists(entry.Path)) spaceList.Items.RemoveAt(i); }
-                catch { }
-            }
-            UpdateSpaceSummary();
+            RenderSpaceList();
             RefreshDrives();
         }
 

@@ -1,14 +1,14 @@
-# WindowsStalker
+# Cleaner
 
 Disk cleanup and system tune-up for Windows, in the spirit of CCleaner and
-CleanMyMac — as **one ~255 KB portable executable with zero dependencies**.
+CleanMyMac — as **one ~235 KB portable executable with zero dependencies**.
 
 No installer required, no .NET to download, no NuGet packages, no toolchain:
 the whole thing is built by `csc.exe`, the C# compiler that already ships inside
 Windows. Clone the repository, run `build.ps1`, and you have the app.
 
-English and Ukrainian, an amber-CRT terminal theme, and it never asks for administrator rights
-unless you tell it to clean something that genuinely needs them.
+English and Ukrainian, a neutral dark theme shared with the `AV` project, and it never asks
+for administrator rights unless you tell it to clean something that genuinely needs them.
 
 ## What it does
 
@@ -25,8 +25,8 @@ unless you tell it to clean something that genuinely needs them.
 ## Build
 
 ```powershell
-.\build.ps1   # builds WindowsStalker.exe with C:\Windows\Microsoft.NET\...\csc.exe
-.\test.ps1    # compiles src\ + tests\ into WindowsStalker.Tests.exe and runs it
+.\build.ps1   # builds Cleaner.exe with C:\Windows\Microsoft.NET\...\csc.exe
+.\test.ps1    # compiles src\ + tests\ into Cleaner.Tests.exe and runs it
 ```
 
 Requires nothing but Windows itself (.NET Framework 4.8, present since Windows
@@ -68,9 +68,9 @@ A program whose job is deleting files has to be conservative, so:
 
 ## Updates
 
-Once per launch and once a day after that, WindowsStalker asks the GitHub
+Once per launch and once a day after that, Cleaner asks the GitHub
 Releases API whether there is a newer tag. If there is, it downloads that
-release's `WindowsStalker.exe` into `%TEMP%`, and a detached `cmd.exe` helper
+release's `Cleaner.exe` into `%TEMP%`, and a detached `cmd.exe` helper
 waits for the app to exit, moves the new build over the old one and starts it
 again — back into the tray if that is where it was.
 
@@ -81,9 +81,9 @@ both a switch to turn it off and a button to check on demand.
 
 ## Install
 
-WindowsStalker runs fine straight from the folder you unzipped it into. On first
+Cleaner runs fine straight from the folder you unzipped it into. On first
 start it offers to install itself for the current user instead
-(`%LocalAppData%\Programs\WindowsStalker`), which adds a Start-menu entry and lets
+(`%LocalAppData%\Programs\Cleaner`), which adds a Start-menu entry and lets
 it start with Windows. Either way no administrator rights are involved, and
 Settings → Status uninstalls it again.
 

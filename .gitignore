@@ -1,7 +1,7 @@
 # Build artifacts
-WindowsStalker.exe
-WindowsStalker.update.exe
-WindowsStalker.Tests.exe
+Cleaner.exe
+Cleaner.update.exe
+Cleaner.Tests.exe
 app.ico
 *.pdb
 

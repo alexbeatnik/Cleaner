@@ -8,7 +8,7 @@ using System.Drawing;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {

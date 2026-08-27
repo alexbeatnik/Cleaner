@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class RulesTests
     {
@@ -97,7 +97,7 @@ namespace WindowsStalker.Tests
 
         public static void TestChromiumProfilesIgnoresMissingFolders()
         {
-            Assert.Equal(0, Rules.ChromiumProfiles(@"%LOCALAPPDATA%\WindowsStalkerNoSuchBrowser\User Data").Count,
+            Assert.Equal(0, Rules.ChromiumProfiles(@"%LOCALAPPDATA%\CleanerNoSuchBrowser\User Data").Count,
                 "a browser that is not installed contributes nothing");
         }
 

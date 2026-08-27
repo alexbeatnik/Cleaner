@@ -2,15 +2,15 @@
 
 A WinForms disk cleaner / system tune-up tool for Windows: junk files, registry
 residue, startup entries, installed programs, large files and duplicates. One
-~255 KB portable exe, **zero dependencies, zero toolchains**: it builds with the
+~235 KB portable exe, **zero dependencies, zero toolchains**: it builds with the
 `csc.exe` compiler that ships inside Windows (.NET Framework 4.8). Keep it that
 way. Licensed under Apache 2.0 (`LICENSE`).
 
 ## Build & test
 
 ```powershell
-.\build.ps1   # builds WindowsStalker.exe with C:\Windows\Microsoft.NET\...\csc.exe
-.\test.ps1    # compiles src\ + tests\ into WindowsStalker.Tests.exe and runs it
+.\build.ps1   # builds Cleaner.exe with C:\Windows\Microsoft.NET\...\csc.exe
+.\test.ps1    # compiles src\ + tests\ into Cleaner.Tests.exe and runs it
 ```
 
 Run **both** after every change. There is no .sln/.csproj and there must not be
@@ -36,7 +36,7 @@ can never drift from the mark drawn in the UI. Note that the icon step uses
   assets (every glyph is GDI+ vector drawing in `src/Icons.cs`/`src/Branding.cs`).
 - **UTF-8 sources** (`/codepage:65001`); Ukrainian literals are normal.
 - The app runs **non-elevated**. Install/uninstall are per-user
-  (`%LocalAppData%\Programs\WindowsStalker`, HKCU, per-user shortcuts). The only
+  (`%LocalAppData%\Programs\Cleaner`, HKCU, per-user shortcuts). The only
   elevated code path is the short-lived `--run-job` helper (`src/ElevatedJob.cs`).
 - Never commit build outputs, `app.ico`, `settings.ini`, `clean.log` or
   `backups/` (all gitignored).
@@ -64,7 +64,7 @@ plain-data types the tests can reach without a window.
 | `src/ElevatedJob.cs` | the job-file format and the `--run-job` elevated helper |
 | `src/RegBackup.cs` | `.reg` writing (the escaping regedit actually accepts) |
 | `src/Util.cs` | sizes, the path guard, deletion, command-line parsing, hashing, shell interop |
-| `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs`, `src/Branding.cs` | custom-drawn controls, glyphs, palette, the app mark and ICO writer |
+| `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs`, `src/Branding.cs` | custom-drawn controls, glyphs, palette, the app mark (`Brand.AppMark` — a mop; every other use draws that one path) and the ICO writer |
 | `src/Lang.cs` | the English/Ukrainian string table |
 
 UI is built in code; the window is fixed-size (`FixedSingle`, `ClientSize`
@@ -111,18 +111,19 @@ Each cost a debugging round; do not reintroduce them.
 - **`Theme.Card` is invisible on a card.** A secondary button filled with the
   card colour reads as a plain label. Buttons that sit on a `CardPanel` use
   `Theme.Subtle`; only tiles on the page background use `Theme.Card`.
-- **Nothing hard-codes a colour or a font.** The look is the amber CRT of
-  `WastelandNext` (`src/renderer/styles.css` `:root`), ported into `src/Theme.cs`
-  so both apps read as the same machine: near-black glass, phosphor amber,
-  dashed rules, square corners (`Theme.Radius` is 0) and scanlines. Type goes
-  through `Theme.Ui`/`Theme.UiBold` (and the `Px` variants), which resolve the
-  monospace stack once and apply the one `FontScale` that keeps a fixed
-  1024x706 of hand-placed controls from overflowing — never `new Font("...")` at
-  a call site. Surfaces go through `Theme.Surface`/`Theme.PaintCard`, which carry
-  the scanlines; a plain `Panel` paints a clean slab and breaks them mid-window,
-  which is why pages are `CrtPanel`. A label that sits on a painted surface must
-  be `Color.Transparent`, or it punches an unlined hole in it — that is what hid
-  the banner watermark.
+- **Nothing hard-codes a colour or a font.** The palette in `src/Theme.cs` is
+  the one the `AV` project uses (`../AV/src/Theme.cs`) so the two tools read as
+  one suite: navy-tinted near-black surfaces, a single blue accent, rounded
+  cards with a soft shadow, and Segoe UI. Type goes through
+  `Theme.Ui`/`Theme.UiBold` (and the `Px` variants), which resolve the family
+  once and apply the one `FontScale` that keeps a fixed 1024x706 of hand-placed
+  controls from overflowing — never `new Font("...")` at a call site. Surfaces go
+  through `Theme.Surface`/`Theme.PaintCard`. A label that sits on a painted
+  surface must be `Color.Transparent`, or it punches a hole in it — that is what
+  hid the banner watermark. This replaced an amber-CRT skin (scanlines over every
+  surface, dashed rules, `Theme.Radius` 0, letter-spaced monospace); the names
+  `CrtPanel` and `Theme.Surface` are what is left of it, and `Theme.Surface` is
+  still the one seam to reach for if the surfaces ever need texture again.
 - **A control added later sits *under* one added earlier.** The Stop buttons
   that share a cell with the action they replace (`dashStop` over `dashAnalyze`,
   `btnSpaceStop` over the two Space scan buttons) were added after it, so simply
@@ -130,11 +131,11 @@ Each cost a debugging round; do not reintroduce them.
   never appeared at all. `SwapStop` in `MainForm.Ui.cs` hides what the Stop
   covers and calls `BringToFront()`; use it rather than toggling `Visible`.
 - **`OnTextChanged` does not repaint a `UserPaint` control.** Only the
-  `ResizeRedraw` style invalidates, and this is a monospace UI — a translated
-  caption of the same length measures to the same width, so the resize never
-  happens and the control keeps painting the old language. `NavTab.FitWidth` and
-  `Toggle.FitWidth` both call `Invalidate()` for exactly this reason
-  ("Space"/"Місце" is the pair that found it).
+  `ResizeRedraw` style invalidates, and a translated caption can measure to the
+  same width, in which case the resize never happens and the control keeps
+  painting the old language. `NavTab.FitWidth` and `Toggle.FitWidth` both call
+  `Invalidate()` for exactly this reason ("Space"/"Місце" is the pair that found
+  it, back when every same-length caption measured identically).
 - **The busy chrome is counted, not flagged.** Three background jobs can be in
   flight at once — an analysis, a registry scan and a space scan, since the
   dashboard tiles start the last two from wherever the user happens to be. With
@@ -143,13 +144,20 @@ Each cost a debugging round; do not reintroduce them.
   running that nothing on screen could call off. `BeginBusy`/`EndBusy` keep a
   `busyDepth`; a worker that finds itself superseded still calls `EndBusy(null)`
   so the count comes back without stamping over the newer job's status line.
-- **Letter-spacing is measured per string, not per character.**
-  `TextRenderer.MeasureText` adds its own padding once per call, so measuring a
-  run a character at a time charges that padding to every character and triples
-  the tracking. `Theme.DrawTracked` steps by one monospace advance instead
-  (ten glyphs measured together, divided), and `Theme.MeasureTracked` is the
-  matching width — auto-sized controls like `NavTab.FitWidth` must use it, or
-  the nav row overflows the header.
+- **A measured label is narrower than the drawn one.** `Theme.MeasureLabel`
+  measures with `NoPadding`; `Theme.DrawLabelLeft`/`DrawLabelCentered` draw
+  without it, so `TextRenderer` adds a few pixels the measurement never charged.
+  An auto-sized control that trusts the measurement exactly ends up one pixel
+  short, and `EndEllipsis` does not then trim one character — it trims three
+  ("Apps" came out as "Ap..."). `NavTab.FitWidth` and the icon+label branch of
+  `ModernButton` both add explicit slack for this.
+- **The nav row only just fits.** Seven Ukrainian labels are the widest set;
+  at 1024 wide they clear the wordmark's column (`leftLimit` in
+  `LayoutNavTabs`) with about forty pixels to spare. A longer app name, a larger
+  `headerTitle` font or more chrome per tab pushes "Налаштування" off the right
+  edge, and `LayoutNavTabs` clamps rather than shrinks — the first tab then
+  slides under the wordmark, which paints on top of it. Check both languages
+  after touching any of those three.
 
 ## Working rules
 

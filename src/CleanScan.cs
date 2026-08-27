@@ -5,7 +5,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     // What one rule turned up. Entries are the exact things the clean step will
     // delete — the immediate children of a folder rule, or the matched files of a

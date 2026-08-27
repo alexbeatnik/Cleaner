@@ -7,7 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {

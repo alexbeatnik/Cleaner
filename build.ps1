@@ -1,4 +1,4 @@
-# Builds WindowsStalker with the compiler built into Windows (.NET Framework 4.8).
+# Builds Cleaner with the compiler built into Windows (.NET Framework 4.8).
 # Nothing to install: csc.exe is already present on the system.
 #
 # Two passes on purpose: the app draws its own icon (src/Branding.cs), so pass 1
@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $csc = Join-Path $env:windir 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:windir 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
 
-$outExe = Join-Path $PSScriptRoot 'WindowsStalker.exe'
+$outExe = Join-Path $PSScriptRoot 'Cleaner.exe'
 $icoPath = Join-Path $PSScriptRoot 'app.ico'
 # All sources live in src\ — csc stitches them into the same single portable exe
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs |
@@ -48,4 +48,4 @@ if (-not (Test-Path $icoPath)) { Write-Host 'Icon generation FAILED' -Foreground
 Build-Exe @("/win32icon:$icoPath")  # pass 2: same sources, now with the icon
 
 $size = [math]::Round((Get-Item $outExe).Length / 1KB, 1)
-Write-Host "OK: WindowsStalker.exe ($size KB)"
+Write-Host "OK: Cleaner.exe ($size KB)"

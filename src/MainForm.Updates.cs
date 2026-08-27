@@ -1,7 +1,7 @@
-// Self-update: WindowsStalker ships as one portable exe with no installer to
+// Self-update: Cleaner ships as one portable exe with no installer to
 // hook, so keeping it current is its own job. Once a day, and once on every
 // launch, it asks the GitHub Releases API for the latest tag; if that is newer
-// than the running build it downloads the release's WindowsStalker.exe into
+// than the running build it downloads the release's Cleaner.exe into
 // %TEMP% and hands the swap to a detached cmd.exe helper, which waits for this
 // process to exit (the exe is locked while it runs), moves the new build over
 // the old one and starts it again in the same window state.
@@ -17,19 +17,19 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {
-        internal const string ProjectUrl = "https://github.com/alexbeatnik/WindowsStalker";
+        internal const string ProjectUrl = "https://github.com/alexbeatnik/Cleaner";
         internal const string AuthorUrl = "https://github.com/alexbeatnik";
         internal const string LicenseUrl = ProjectUrl + "/blob/main/LICENSE";
         internal const string ReleasesUrl = ProjectUrl + "/releases";
 
         const string UpdateApiUrl =
-            "https://api.github.com/repos/alexbeatnik/WindowsStalker/releases/latest";
+            "https://api.github.com/repos/alexbeatnik/Cleaner/releases/latest";
         // The asset name the release workflow uploads (.github/workflows/release.yml)
-        const string UpdateAssetName = "WindowsStalker.exe";
+        const string UpdateAssetName = "Cleaner.exe";
         // One small API request per day: nowhere near the 60/hour GitHub allows
         // an unauthenticated caller, even with several machines behind one address.
         const int AppUpdateCheckHours = 24;
@@ -123,7 +123,7 @@ namespace WindowsStalker
         void AppUpdateWorker(bool manual)
         {
             string downloaded = null, version = null;
-            bool reached = false, newer = false;
+            bool reached = false, newer = false, noRelease = false;
             try
             {
                 // GitHub dropped TLS 1.0/1.1, and .NET Framework 4.8 still takes
@@ -166,20 +166,41 @@ namespace WindowsStalker
                     }
                 }
             }
-            catch { } // offline, rate-limited, or no release yet — tomorrow, then
+            catch (WebException ex)
+            {
+                // A repository with nothing published answers /releases/latest
+                // with 404, and so does one whose only releases are drafts. That
+                // is a successful check with "there is no release" for an answer,
+                // not a failed one — reporting it as a connection problem sends
+                // the user after a fault they do not have.
+                var http = ex.Response as HttpWebResponse;
+                if (http != null && http.StatusCode == HttpStatusCode.NotFound) noRelease = true;
+            }
+            catch { } // offline, rate-limited, TLS refused — tomorrow, then
 
             string path = downloaded, found = version;
-            bool ok = reached, isNew = newer;
-            OnUi(delegate { OnAppUpdateChecked(path, found, ok, isNew, manual); });
+            bool ok = reached, isNew = newer, none = noRelease;
+            OnUi(delegate { OnAppUpdateChecked(path, found, ok, isNew, none, manual); });
         }
 
-        void OnAppUpdateChecked(string updatePath, string version, bool reached, bool newer, bool manual)
+        void OnAppUpdateChecked(string updatePath, string version, bool reached, bool newer,
+                                bool noRelease, bool manual)
         {
             checkingAppUpdate = false;
-            if (reached)
+            // noRelease stamps the clock too: the check ran and got an answer, and
+            // without the stamp the timer would ask again every ten minutes for as
+            // long as the repository has nothing published.
+            if (reached || noRelease)
             {
                 lastAppUpdateCheck = DateTime.Now;
                 SaveSettings();
+            }
+
+            if (noRelease)
+            {
+                if (manual) SetUpdateStatus(Lang.T("update.noRelease"));
+                else RefreshUpdateStatus();
+                return;
             }
 
             // Reached but the download failed counts as a failed check: there is

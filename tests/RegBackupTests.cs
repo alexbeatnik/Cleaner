@@ -4,7 +4,7 @@ using System;
 using System.Text;
 using Microsoft.Win32;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class RegBackupTests
     {
@@ -80,7 +80,7 @@ namespace WindowsStalker.Tests
         // check the export names the key and the value it will remove.
         public static void TestExportValueWritesTheKeyHeader()
         {
-            const string path = @"Software\WindowsStalkerSelfTest";
+            const string path = @"Software\CleanerSelfTest";
             try
             {
                 using (RegistryKey k = Registry.CurrentUser.CreateSubKey(path))
@@ -100,7 +100,7 @@ namespace WindowsStalker.Tests
         public static void TestExportMissingKeyWritesNothing()
         {
             var sb = new StringBuilder();
-            RegBackup.ExportKey(sb, "HKCU", @"Software\WindowsStalkerNoSuchKeyAnywhere", true);
+            RegBackup.ExportKey(sb, "HKCU", @"Software\CleanerNoSuchKeyAnywhere", true);
             Assert.Equal("", sb.ToString(), "a key that is already gone contributes no backup lines");
         }
     }

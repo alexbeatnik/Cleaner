@@ -1,6 +1,6 @@
 // The app mark, drawn with GDI+ — and the ICO writer that turns it into the
 // executable's Win32 icon resource at build time (build.ps1 pass 1 runs
-// WindowsStalker.exe --write-icon app.ico, pass 2 embeds the result).
+// Cleaner.exe --write-icon app.ico, pass 2 embeds the result).
 // Keeping the icon generated rather than committed means the repository holds
 // no binary assets and the taskbar icon can never drift from the in-app mark.
 using System;
@@ -10,7 +10,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     static class Brand
     {
@@ -18,35 +18,66 @@ namespace WindowsStalker
         // view wants; 16/20/24 are the tray, taskbar and title bar.
         internal static readonly int[] IconSizes = new int[] { 16, 20, 24, 32, 48, 64, 128, 256 };
 
-        // Radiation trefoil, ISO 361 geometry: a centre disc, then three
-        // 60°-wide blades running from 1.5x to 5x the disc radius with 60° gaps
-        // between them. r is the outer radius. GDI+ angles run clockwise from 3
-        // o'clock, so -120..-60 is the blade pointing straight up and the gap
-        // between the other two lands at the bottom — the orientation the real
-        // sign has.
-        internal static GraphicsPath Trefoil(float cx, float cy, float r)
+        // A mop, filled rather than stroked: at 16 px an outline of this shape
+        // closes up into a grey blob, and the badge needs a silhouette. Built
+        // upright around the origin in units of r, then tilted — a mop standing
+        // straight up reads as a lollipop, and the lean is what makes it a tool
+        // someone is holding.
+        //
+        // r is the half-height of the whole drawing, so the handle tip sits at
+        // -r and the strand tips at +r before the tilt.
+        internal static GraphicsPath Mop(float cx, float cy, float r)
         {
-            float disc = r * 0.21f;   // centre dot
-            float inner = r * 0.33f;  // where the blades begin
-            var outer = new RectangleF(cx - r, cy - r, r * 2, r * 2);
-            var hole = new RectangleF(cx - inner, cy - inner, inner * 2, inner * 2);
-            var p = new GraphicsPath();
-            p.AddEllipse(cx - disc, cy - disc, disc * 2, disc * 2);
-            for (int i = 0; i < 3; i++)
+            var path = new GraphicsPath();
+
+            // Handle: a slim bar with a rounded cap, running down into the collar.
+            // Any thinner and it is a single pixel at tray size, which reads as a
+            // stray mark rather than as the thing the head is attached to.
+            path.AddPath(Theme.Round(new RectangleF(-0.14f, -1.00f, 0.28f, 1.02f), 0.14f), false);
+            // Collar: the ferrule that clamps the head on. Without it the handle
+            // and the head read as two unrelated shapes at small sizes.
+            path.AddPath(Theme.Round(new RectangleF(-0.32f, -0.14f, 0.64f, 0.21f), 0.06f), false);
+
+            // Head: a trapezoid flaring out to the floor, its bottom edge cut by
+            // two notches. Three strands is what survives 16 px — four turns the
+            // bottom edge into noise, and none of them reads as a plain wedge. The
+            // notches stop well short of the collar: cut any deeper and the
+            // silhouette stops being a mop head and starts being a pair of legs.
+            var head = new GraphicsPath();
+            head.AddLine(-0.46f, 0.02f, 0.46f, 0.02f);
+            head.AddLine(0.46f, 0.02f, 0.82f, 1.00f);
+            head.AddLine(0.82f, 1.00f, 0.44f, 1.00f);
+            head.AddLine(0.44f, 1.00f, 0.34f, 0.74f);   // notch up
+            head.AddLine(0.34f, 0.74f, 0.24f, 1.00f);   // and back down
+            head.AddLine(0.24f, 1.00f, -0.24f, 1.00f);
+            head.AddLine(-0.24f, 1.00f, -0.34f, 0.74f);
+            head.AddLine(-0.34f, 0.74f, -0.44f, 1.00f);
+            head.AddLine(-0.44f, 1.00f, -0.82f, 1.00f);
+            head.CloseFigure();
+            path.AddPath(head, false);
+            head.Dispose();
+
+            using (var m = new Matrix())
             {
-                float a = -120f + i * 120f;
-                p.StartFigure();
-                p.AddArc(outer, a, 60f);       // along the outer edge
-                p.AddArc(hole, a + 60f, -60f); // and back along the inner one
-                p.CloseFigure();
+                m.Translate(cx, cy);
+                m.Scale(r, r);
+                m.Rotate(-24f);   // GDI+ rotates clockwise, so this leans the handle right
+                path.Transform(m);
             }
-            return p;
+            return path;
         }
 
-        // The full mark: a scorched-dark badge carrying the radiation trefoil in
-        // hazard amber, with a faint radioactive haze behind it — the Zone
-        // warning-sign look. Drawn into an arbitrary rectangle so the same code
-        // serves the icon resource, the tray icon and the in-window header.
+        // The app mark: the mop, with the whole drawing nudged so the tilt does
+        // not leave it sitting off-centre in its badge. r is the half-height.
+        internal static GraphicsPath AppMark(float cx, float cy, float r)
+        {
+            return Mop(cx - r * 0.04f, cy, r);
+        }
+
+        // The full mark: a rounded blue badge carrying the mop in white, the flat
+        // treatment the AV project next door uses for its own badge so the two sit
+        // together on a taskbar. Drawn into an arbitrary rectangle, so the same
+        // code serves the icon resource, the tray icon and the in-window header.
         public static void PaintMark(Graphics g, RectangleF r)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -54,38 +85,23 @@ namespace WindowsStalker
             var box = new RectangleF(r.X + (r.Width - s) / 2f, r.Y + (r.Height - s) / 2f, s, s);
             float cx = box.X + s * 0.5f, cy = box.Y + s * 0.5f;
 
-            using (var path = Theme.Round(box, s * 0.24f))
+            using (var path = Theme.Round(box, s * 0.22f))
             using (var brush = new LinearGradientBrush(box,
-                       Color.FromArgb(52, 48, 38), Color.FromArgb(13, 14, 12), 55f))
+                       Color.FromArgb(96, 156, 255), Color.FromArgb(38, 96, 214), 55f))
                 g.FillPath(brush, path);
 
-            // The haze lifts the trefoil off the near-black field and keeps the
-            // badge from dissolving into the app's own dark header. Radius stays
-            // under half the box, so it never spills past the rounded corners.
-            float gr = s * 0.46f;
-            using (var glow = new GraphicsPath())
-            {
-                glow.AddEllipse(cx - gr, cy - gr, gr * 2, gr * 2);
-                using (var haze = new PathGradientBrush(glow))
-                {
-                    haze.CenterColor = Color.FromArgb(70, 250, 204, 74);
-                    haze.SurroundColors = new Color[] { Color.FromArgb(0, 250, 204, 74) };
-                    g.FillPath(haze, glow);
-                }
-            }
-
             // Rim, inset by half its own width: a pen centred on the box edge
-            // would put half the stroke outside the bitmap and lose it.
+            // would put half the stroke outside the bitmap and lose it. It is what
+            // keeps the badge from dissolving into a dark taskbar.
             float bw = Math.Max(1f, s * 0.028f);
             var rim = new RectangleF(box.X + bw / 2f, box.Y + bw / 2f, s - bw, s - bw);
-            using (var path = Theme.Round(rim, s * 0.24f - bw / 2f))
-            using (var pen = new Pen(Color.FromArgb(105, 240, 196, 84), bw))
+            using (var path = Theme.Round(rim, s * 0.22f - bw / 2f))
+            using (var pen = new Pen(Color.FromArgb(90, 255, 255, 255), bw))
                 g.DrawPath(pen, path);
 
-            using (var trefoil = Trefoil(cx, cy, s * 0.355f))
-            using (var b = new LinearGradientBrush(box,
-                       Color.FromArgb(255, 226, 88), Color.FromArgb(224, 142, 18), 90f))
-                g.FillPath(b, trefoil);
+            using (var mark = AppMark(cx, cy, s * 0.33f))
+            using (var b = new SolidBrush(Color.White))
+                g.FillPath(b, mark);
         }
 
         public static Bitmap MarkBitmap(int size)

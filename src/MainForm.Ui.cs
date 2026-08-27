@@ -8,7 +8,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     public partial class MainForm : Form
     {
@@ -47,6 +47,7 @@ namespace WindowsStalker
             UpdateDashboard();
             EnsureAutostartFirstRun();
             StartScheduleTimer();
+            StartDriveTimer();
 
             if (startInTray)
             {
@@ -108,14 +109,15 @@ namespace WindowsStalker
             // that its 24px height then hides. AutoSize still keeps it exactly
             // as wide as the text, which is what stops it covering the tabs.
             headerTitle.AutoSize = true;
-            headerTitle.Font = Theme.UiBold(14f);
+            headerTitle.Font = Theme.UiBold(13f);
             headerTitle.ForeColor = Theme.Text;
             headerTitle.BackColor = Color.Transparent;
-            // Set in caps like every other heading here, with the camel hump
-            // turned into a space: WINDOWSSTALKER is a wall of letters, and the
-            // name itself has to stay one word everywhere else (install folder,
-            // registry value, mutex), so the split happens here and only here.
-            headerTitle.Text = Regex.Replace(AppName, "(?<=[a-z])(?=[A-Z])", " ").ToUpperInvariant();
+            // Title case, with the camel hump turned into a space: the name has to
+            // stay one word everywhere else (install folder, registry value,
+            // mutex), so the split happens here and only here. Not caps — a
+            // letter-spaced all-caps wordmark belonged to the terminal skin, and
+            // in caps this label runs wide enough to sit under the first nav tab.
+            headerTitle.Text = Regex.Replace(AppName, "(?<=[a-z])(?=[A-Z])", " ");
             header.Controls.Add(headerTitle);
 
             var tagline = new Label();
@@ -189,7 +191,7 @@ namespace WindowsStalker
             if (navTabs == null || headerPanel == null) return;
             // leftLimit reserves the wordmark's column; the Ukrainian labels are
             // the widest set and still fit to its right at this window size.
-            const int gap = 4, rightPad = 20, leftLimit = 236;
+            const int gap = 3, rightPad = 20, leftLimit = 226;
             int total = -gap;
             foreach (NavTab tab in navTabs) total += tab.Width + gap;
             int x = Math.Max(leftLimit, headerPanel.ClientSize.Width - total - rightPad);
@@ -211,6 +213,10 @@ namespace WindowsStalker
             // Lists are populated the first time their page is opened, not at
             // startup: enumerating installed programs and startup entries costs
             // real time and most sessions never open those pages.
+            // The dashboard storage card is only ticked while it is on screen,
+            // so it re-reads on the way in rather than showing a stale bar for
+            // the first five seconds after every page switch.
+            if (index == 0) RefreshDrives();
             if (index == 3 && startupList.Items.Count == 0) RefreshStartup();
             if (index == 4 && appsList.Items.Count == 0) RefreshApps();
             if (index == 6) RefreshSettingsStatus();
@@ -349,7 +355,7 @@ namespace WindowsStalker
 
             // Hero row: the one big action on the left, the state of the machine
             // on the right — the shape AV uses for QUICK SCAN plus the shield.
-            dashAnalyze = Tile(Ico.Radiation, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
+            dashAnalyze = Tile(Ico.Search, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
                 Pad, 6, 300, 186, delegate { ShowPage(1); StartAnalyze(false); });
             dashAnalyze.Font = Theme.UiBold(12f);
             page.Controls.Add(dashAnalyze);
@@ -426,30 +432,73 @@ namespace WindowsStalker
             return page;
         }
 
+        // Re-reads every fixed drive into the storage card. The bars are updated
+        // in place rather than rebuilt: this runs on a timer, and Controls.Clear()
+        // does not dispose what it drops, so rebuilding leaked a window handle per
+        // drive per call and flickered the whole card on every tick.
         void RefreshDrives()
         {
-            if (drivesHost == null) return;
-            drivesHost.Controls.Clear();
-            int y = 0;
+            if (drivesHost == null || drivesHost.IsDisposed) return;
             DriveInfo[] drives;
             try { drives = DriveInfo.GetDrives(); }
             catch { return; }
+
+            int shown = 0;
             foreach (DriveInfo d in drives)
             {
+                string letter, label;
+                long total, free;
                 try
                 {
                     if (d.DriveType != DriveType.Fixed || !d.IsReady) continue;
-                    var bar = new DriveBar();
-                    bar.Letter = d.Name.TrimEnd('\\');
-                    bar.Label = d.VolumeLabel;
-                    bar.Total = d.TotalSize;
-                    bar.Free = d.AvailableFreeSpace;
-                    bar.SetBounds(0, y, drivesHost.ClientSize.Width - 4, 46);
-                    drivesHost.Controls.Add(bar);
-                    y += 56;
+                    letter = d.Name.TrimEnd('\\');
+                    label = d.VolumeLabel;
+                    total = d.TotalSize;
+                    free = d.AvailableFreeSpace;
                 }
-                catch { }
+                catch { continue; } // a locked volume can answer IsReady and then throw
+
+                var bar = shown < drivesHost.Controls.Count
+                    ? drivesHost.Controls[shown] as DriveBar : null;
+                if (bar == null)
+                {
+                    bar = new DriveBar();
+                    bar.SetBounds(0, shown * 56, drivesHost.ClientSize.Width - 4, 46);
+                    drivesHost.Controls.Add(bar);
+                }
+                bar.SetDrive(letter, label, total, free);
+                shown++;
             }
+
+            // A drive can also go away — an external disk unplugged, a volume
+            // locked — so anything past the last one written is dropped for good.
+            for (int i = drivesHost.Controls.Count - 1; i >= shown; i--)
+            {
+                Control extra = drivesHost.Controls[i];
+                drivesHost.Controls.RemoveAt(i);
+                extra.Dispose();
+            }
+        }
+
+        // Free space moves without this app's help — a clean here, an installer or
+        // a download somewhere else — and the storage card used to be re-read only
+        // at startup and at the end of a clean, so it sat frozen at whatever it
+        // said when the window opened until the app was restarted. Five seconds is
+        // free: GetDiskFreeSpaceEx per fixed drive costs microseconds, and
+        // SetDrive only repaints a bar whose numbers actually moved.
+        void StartDriveTimer()
+        {
+            driveTimer = new System.Windows.Forms.Timer();
+            driveTimer.Interval = 5000;
+            driveTimer.Tick += delegate
+            {
+                // Nothing to keep fresh while the window is hidden in the tray or
+                // the user is on another page: ShowPage(0) re-reads on the way in.
+                if (!Visible || WindowState == FormWindowState.Minimized) return;
+                if (pages == null || pages.Length == 0 || !pages[0].Visible) return;
+                RefreshDrives();
+            };
+            driveTimer.Start();
         }
 
         // Repaints the dashboard from whatever the current session says. Called
@@ -688,6 +737,12 @@ namespace WindowsStalker
             appsList.Columns.Add(Lang.T("col.version"), 120);
             appsList.Columns.Add(Lang.T("col.size"), 110, HorizontalAlignment.Right);
             appsList.Columns.Add(Lang.T("col.installed"), 120);
+            // Sortable for the same reason the Space list is: which program is
+            // worth uninstalling is a question about size or about how long ago
+            // something was installed, not about the alphabet.
+            appsList.Sortable = true;
+            appsList.ColumnClick += delegate(object s2, ColumnClickEventArgs e2) { SortAppsBy(e2.Column); };
+            appsList.SetSort(appsSort, appsSortDesc);
             appsList.CheckState = delegate(ListViewItem it) { return -1; };
             appsList.DoubleClick += delegate { UninstallSelectedApp(); };
 
@@ -723,9 +778,16 @@ namespace WindowsStalker
             StripRight(spaceStrip, btnSpacePickFolder, 190, 36);
 
             spaceList = CardList(card);
-            spaceList.Columns.Add(Lang.T("col.name"), 360);
-            spaceList.Columns.Add(Lang.T("col.size"), 130, HorizontalAlignment.Right);
-            spaceList.Columns.Add(Lang.T("col.path"), 450);
+            spaceList.Columns.Add(Lang.T("col.name"), 320);
+            spaceList.Columns.Add(Lang.T("col.size"), 120, HorizontalAlignment.Right);
+            spaceList.Columns.Add(Lang.T("col.modified"), 150);
+            spaceList.Columns.Add(Lang.T("col.path"), 350);
+            // The only list in the app whose order is the user's to choose: a
+            // "what is eating my disk" list is read biggest-first, but tracking
+            // down what a folder filled up with wants name or date order.
+            spaceList.Sortable = true;
+            spaceList.ColumnClick += delegate(object s2, ColumnClickEventArgs e2) { SortSpaceBy(e2.Column); };
+            spaceList.SetSort(spaceSort, spaceSortDesc);
             spaceList.CheckState = delegate(ListViewItem it)
             {
                 var entry = it.Tag as SpaceEntry;
@@ -1071,7 +1133,7 @@ namespace WindowsStalker
             RetextColumns(regList, "col.item", "col.detail", "col.location");
             RetextColumns(startupList, "col.name", "col.status", "col.location", "col.path");
             RetextColumns(appsList, "col.name", "col.publisher", "col.version", "col.size", "col.installed");
-            RetextColumns(spaceList, "col.name", "col.size", "col.path");
+            RetextColumns(spaceList, "col.name", "col.size", "col.modified", "col.path");
             RetextColumns(activityList, "col.event");
 
             SetStatus(Lang.T("status.ready"));
@@ -1079,7 +1141,7 @@ namespace WindowsStalker
             RefreshRegList();
             RefreshStartupTexts();
             FilterApps();
-            UpdateSpaceSummary();
+            RenderSpaceList();   // the duplicate group headers are a Lang string
             UpdateDashboard();
             RefreshSettingsStatus();
             RefreshActivity();

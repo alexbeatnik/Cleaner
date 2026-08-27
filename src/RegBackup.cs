@@ -10,7 +10,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     static class RegBackup
     {

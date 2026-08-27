@@ -1,6 +1,6 @@
 // Minimal zero-dependency test runner, in the spirit of the project: no NuGet,
 // no MSTest/xUnit — compiled by the same built-in csc.exe together with src\*.cs
-// into WindowsStalker.Tests.exe (see test.ps1). Discovers every public static method
+// into Cleaner.Tests.exe (see test.ps1). Discovers every public static method
 // named Test* in every class named *Tests, runs them all, and exits non-zero if
 // anything failed — which is what the CI workflow keys off.
 using System;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class Program
     {

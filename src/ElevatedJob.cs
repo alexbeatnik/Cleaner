@@ -16,7 +16,7 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace WindowsStalker
+namespace Cleaner
 {
     enum JobOpKind { Delete, RegDeleteValue, RegDeleteKey }
 
@@ -30,7 +30,7 @@ namespace WindowsStalker
 
     static class ElevatedJob
     {
-        internal const string Header = "# WindowsStalker job v1";
+        internal const string Header = "# Cleaner job v1";
 
         public static bool IsElevated()
         {

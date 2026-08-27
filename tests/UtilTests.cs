@@ -4,7 +4,7 @@
 using System;
 using System.IO;
 
-namespace WindowsStalker.Tests
+namespace Cleaner.Tests
 {
     static class UtilTests
     {
@@ -28,6 +28,38 @@ namespace WindowsStalker.Tests
         public static void TestFormatSizeNegativeIsZero()
         {
             Assert.Equal("0 B", Util.FormatSize(-5), "a negative size is a bug elsewhere, not a crash here");
+        }
+
+        // The whole point of the fine variant: past 100 the plain one rounds to
+        // whole units, which is what made a few gigabytes freed off a 953 GB disk
+        // move the drive bar by nothing at all.
+        public static void TestFormatSizeFineKeepsADecimalPast100()
+        {
+            Assert.Equal("281.4 GB", Util.FormatSizeFine(302150000000L), "three-digit values keep a decimal");
+            Assert.Equal("281 GB", Util.FormatSize(302150000000L), "the plain one still does not");
+            Assert.Equal("1.00 GB", Util.FormatSizeFine(1024L * 1024 * 1024), "small values are unchanged");
+            Assert.Equal("512 B", Util.FormatSizeFine(512), "bytes stay bytes");
+            Assert.Equal("0 B", Util.FormatSizeFine(-5), "a negative size is still zero");
+        }
+
+        public static void TestFormatPercentClampsAndRounds()
+        {
+            Assert.Equal("0.0%", Util.FormatPercent(0), "empty disk");
+            Assert.Equal("70.5%", Util.FormatPercent(0.7049), "one decimal");
+            Assert.Equal("100.0%", Util.FormatPercent(1), "full disk");
+            Assert.Equal("100.0%", Util.FormatPercent(4), "a ratio over one is a bug elsewhere, not 400%");
+            Assert.Equal("0.0%", Util.FormatPercent(-1), "and neither is a negative one");
+            Assert.Equal("0.0%", Util.FormatPercent(0.0 / 0.0), "a zero-byte total divides to NaN");
+        }
+
+        public static void TestFormatDateDashesUnknownTimestamps()
+        {
+            Assert.Equal("—", Util.FormatDate(DateTime.MinValue),
+                "a file has no timestamp rather than one from the year 1");
+            Assert.Equal("—", Util.FormatDate(new DateTime(1601, 1, 1)),
+                "the FILETIME epoch is what an unreadable timestamp comes back as");
+            Assert.Equal("05.03.2026 14:07", Util.FormatDate(new DateTime(2026, 3, 5, 14, 7, 0)),
+                "day first, and the same in both languages");
         }
 
         public static void TestTryParseTicksRejectsGarbage()

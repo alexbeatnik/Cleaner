@@ -1,6 +1,6 @@
 name: Release
 
-# Builds WindowsStalker.exe and publishes it as a GitHub Release whenever the
+# Builds Cleaner.exe and publishes it as a GitHub Release whenever the
 # version in src/AssemblyInfo.cs changes on main. Safe to run on every push: it
 # no-ops if a release for the current version already exists.
 on:
@@ -53,7 +53,7 @@ jobs:
           # without this the step itself would be reported as failed.
           exit 0
 
-      - name: Build WindowsStalker.exe
+      - name: Build Cleaner.exe
         if: steps.check.outputs.skip == 'false'
         shell: pwsh
         run: .\build.ps1
@@ -64,6 +64,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" WindowsStalker.exe `
+          gh release create "${{ steps.version.outputs.tag }}" Cleaner.exe `
             --title "${{ steps.version.outputs.tag }}" `
             --generate-notes
