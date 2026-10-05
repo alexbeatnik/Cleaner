@@ -18,50 +18,46 @@ namespace Cleaner
         // view wants; 16/20/24 are the tray, taskbar and title bar.
         internal static readonly int[] IconSizes = new int[] { 16, 20, 24, 32, 48, 64, 128, 256 };
 
-        // A mop, filled rather than stroked: at 16 px an outline of this shape
-        // closes up into a grey blob, and the badge needs a silhouette. Built
-        // upright around the origin in units of r, then tilted — a mop standing
-        // straight up reads as a lollipop, and the lean is what makes it a tool
-        // someone is holding.
-        //
-        // r is the half-height of the whole drawing, so the handle tip sits at
-        // -r and the strand tips at +r before the tilt.
+        // A mop with four separate cloth strands. The previous solid trapezoid
+        // read as a chipped shovel at large sizes and became a lump at 16 px.
+        // Built upright in units of r, then tilted as one silhouette.
         internal static GraphicsPath Mop(float cx, float cy, float r)
         {
             var path = new GraphicsPath();
 
-            // Handle: a slim bar with a rounded cap, running down into the collar.
-            // Any thinner and it is a single pixel at tray size, which reads as a
-            // stray mark rather than as the thing the head is attached to.
-            path.AddPath(Theme.Round(new RectangleF(-0.14f, -1.00f, 0.28f, 1.02f), 0.14f), false);
-            // Collar: the ferrule that clamps the head on. Without it the handle
-            // and the head read as two unrelated shapes at small sizes.
-            path.AddPath(Theme.Round(new RectangleF(-0.32f, -0.14f, 0.64f, 0.21f), 0.06f), false);
-
-            // Head: a trapezoid flaring out to the floor, its bottom edge cut by
-            // two notches. Three strands is what survives 16 px — four turns the
-            // bottom edge into noise, and none of them reads as a plain wedge. The
-            // notches stop well short of the collar: cut any deeper and the
-            // silhouette stops being a mop head and starts being a pair of legs.
-            var head = new GraphicsPath();
-            head.AddLine(-0.46f, 0.02f, 0.46f, 0.02f);
-            head.AddLine(0.46f, 0.02f, 0.82f, 1.00f);
-            head.AddLine(0.82f, 1.00f, 0.44f, 1.00f);
-            head.AddLine(0.44f, 1.00f, 0.34f, 0.74f);   // notch up
-            head.AddLine(0.34f, 0.74f, 0.24f, 1.00f);   // and back down
-            head.AddLine(0.24f, 1.00f, -0.24f, 1.00f);
-            head.AddLine(-0.24f, 1.00f, -0.34f, 0.74f);
-            head.AddLine(-0.34f, 0.74f, -0.44f, 1.00f);
-            head.AddLine(-0.44f, 1.00f, -0.82f, 1.00f);
-            head.CloseFigure();
-            path.AddPath(head, false);
-            head.Dispose();
+            using (var handle = Theme.Round(new RectangleF(-0.11f, -1.00f, 0.22f, 1.25f), 0.10f))
+                path.AddPath(handle, false);
+            // Each strand is an independent filled figure, joined at the top by
+            // the ferrule. The open channels between them stay visible in the
+            // large icon while the overall outline survives the taskbar size.
+            path.AddPolygon(new PointF[]
+            {
+                new PointF(-0.42f, 0.27f), new PointF(-0.25f, 0.27f),
+                new PointF(-0.35f, 0.92f), new PointF(-0.58f, 0.92f)
+            });
+            path.AddPolygon(new PointF[]
+            {
+                new PointF(-0.18f, 0.27f), new PointF(-0.03f, 0.27f),
+                new PointF(-0.06f, 1.02f), new PointF(-0.30f, 1.02f)
+            });
+            path.AddPolygon(new PointF[]
+            {
+                new PointF(0.03f, 0.27f), new PointF(0.18f, 0.27f),
+                new PointF(0.30f, 1.02f), new PointF(0.06f, 1.02f)
+            });
+            path.AddPolygon(new PointF[]
+            {
+                new PointF(0.25f, 0.27f), new PointF(0.42f, 0.27f),
+                new PointF(0.58f, 0.92f), new PointF(0.35f, 0.92f)
+            });
+            using (var ferrule = Theme.Round(new RectangleF(-0.47f, 0.13f, 0.94f, 0.21f), 0.06f))
+                path.AddPath(ferrule, false);
 
             using (var m = new Matrix())
             {
                 m.Translate(cx, cy);
                 m.Scale(r, r);
-                m.Rotate(-24f);   // GDI+ rotates clockwise, so this leans the handle right
+                m.Rotate(-24f);
                 path.Transform(m);
             }
             return path;
@@ -99,9 +95,10 @@ namespace Cleaner
             using (var pen = new Pen(Color.FromArgb(90, 255, 255, 255), bw))
                 g.DrawPath(pen, path);
 
-            using (var mark = AppMark(cx, cy, s * 0.33f))
+            using (var mark = AppMark(cx, cy, s * 0.37f))
             using (var b = new SolidBrush(Color.White))
                 g.FillPath(b, mark);
+
         }
 
         public static Bitmap MarkBitmap(int size)

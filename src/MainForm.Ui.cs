@@ -343,6 +343,7 @@ namespace Cleaner
         // folder picker) — the one place AV puts a control inside a StatStrip.
         static void StripRight(StatStrip strip, Control c, int w, int h)
         {
+            strip.RightReserve = w + 16;
             c.SetBounds(strip.Width - w - 20, (strip.Height - 6 - h) / 2, w, h);
             strip.Controls.Add(c);
         }
@@ -358,6 +359,7 @@ namespace Cleaner
             dashAnalyze = Tile(Ico.Search, Theme.Accent, Theme.AccentHot, Theme.OnAccent,
                 Pad, 6, 300, 186, delegate { ShowPage(1); StartAnalyze(false); });
             dashAnalyze.Font = Theme.UiBold(12f);
+            dashAnalyze.HeroStyle = true;
             page.Controls.Add(dashAnalyze);
 
             // Occupies the same cell as the analyze tile and swaps in while work
@@ -365,6 +367,7 @@ namespace Cleaner
             dashStop = Tile(Ico.StopIcon, Theme.Danger, Theme.DangerHot, Theme.OnAccent,
                 Pad, 6, 300, 186, delegate { CancelWork(); });
             dashStop.Font = Theme.UiBold(12f);
+            dashStop.HeroStyle = true;
             dashStop.Visible = false;
             page.Controls.Add(dashStop);
 
@@ -463,7 +466,7 @@ namespace Cleaner
                 if (bar == null)
                 {
                     bar = new DriveBar();
-                    bar.SetBounds(0, shown * 56, drivesHost.ClientSize.Width - 4, 46);
+                    bar.SetBounds(0, shown * 72, drivesHost.ClientSize.Width - 4, 64);
                     drivesHost.Controls.Add(bar);
                 }
                 bar.SetDrive(letter, label, total, free);

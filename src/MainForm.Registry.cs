@@ -308,11 +308,9 @@ namespace Cleaner
                                 if (string.IsNullOrWhiteSpace(display)) continue;
                                 string location = k.GetValue("InstallLocation") as string;
                                 string uninstall = k.GetValue("UninstallString") as string;
-                                bool locationGone = string.IsNullOrWhiteSpace(location) || !DirectoryExists(location);
-                                bool uninstallGone = string.IsNullOrWhiteSpace(uninstall) || Util.TargetMissing(uninstall);
-                                // An MSI uninstall string runs msiexec, which always
-                                // exists — those are never reported.
-                                if (!locationGone || !uninstallGone) continue;
+                                // An absent field is not evidence that the thing
+                                // it would point to has disappeared.
+                                if (!IsStaleUninstallEntry(location, uninstall)) continue;
                                 RegIssue issue = Issue(place[0], place[1] + "\\" + name, null, true,
                                     "reg.kind.uninstall", display);
                                 issue.NeedsAdmin = place[0] == "HKLM";
@@ -329,6 +327,14 @@ namespace Cleaner
         {
             try { return Directory.Exists(Environment.ExpandEnvironmentVariables(path.Trim().Trim('"'))); }
             catch { return false; }
+        }
+
+        internal static bool IsStaleUninstallEntry(string location, string uninstall)
+        {
+            return !string.IsNullOrWhiteSpace(location)
+                && !string.IsNullOrWhiteSpace(uninstall)
+                && !DirectoryExists(location)
+                && Util.TargetMissing(uninstall);
         }
 
         static RegIssue Issue(string hive, string key, string valueName, bool wholeKey,
@@ -508,8 +514,10 @@ namespace Cleaner
                 sb.AppendLine("; Cleaner backup — run this file to restore the entries below");
                 foreach (RegIssue issue in issues)
                 {
-                    if (issue.DeleteWholeKey) RegBackup.ExportKey(sb, issue.HiveName, issue.Key, true);
-                    else RegBackup.ExportValue(sb, issue.HiveName, issue.Key, issue.ValueName);
+                    bool exported = issue.DeleteWholeKey
+                        ? RegBackup.ExportKey(sb, issue.HiveName, issue.Key, true)
+                        : RegBackup.ExportValue(sb, issue.HiveName, issue.Key, issue.ValueName);
+                    if (!exported) return null;
                 }
                 string path = Path.Combine(backupDir,
                     "registry-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".reg");

@@ -185,7 +185,11 @@ namespace Cleaner
                 if (++scanned % 200 == 0)
                 {
                     string current = dir;
-                    OnUi(delegate { SetStatus(string.Format(Lang.T("space.scanning"), Util.ShortenPath(current, 60))); });
+                    OnUi(delegate
+                    {
+                        if (spaceCancel == cancel && !cancel.Cancelled && spaceScanRunning)
+                            SetStatus(string.Format(Lang.T("space.scanning"), Util.ShortenPath(current, 60)));
+                    });
                 }
             }
             return result;
@@ -247,7 +251,11 @@ namespace Cleaner
             int candidateCount = 0;
             foreach (List<FileRecord> bucket in candidates) candidateCount += bucket.Count;
             int announced = candidateCount;
-            OnUi(delegate { SetStatus(string.Format(Lang.T("space.hashing"), announced)); });
+            OnUi(delegate
+            {
+                if (spaceCancel == cancel && !cancel.Cancelled && spaceScanRunning)
+                    SetStatus(string.Format(Lang.T("space.hashing"), announced));
+            });
 
             // Hashing is the long half of this scan, and until it says something
             // the window looks hung — which is also why Stop felt broken. The
@@ -275,7 +283,8 @@ namespace Cleaner
                     int done = hashed;
                     OnUi(delegate
                     {
-                        SetStatus(string.Format(Lang.T("space.hashingProgress"), done, announced));
+                        if (spaceCancel == cancel && !cancel.Cancelled && spaceScanRunning)
+                            SetStatus(string.Format(Lang.T("space.hashingProgress"), done, announced));
                     });
                 }
             }

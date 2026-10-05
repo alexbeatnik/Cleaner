@@ -353,30 +353,37 @@ namespace Cleaner
                          List<string> adminPaths, bool automatic)
         {
             cleanRunning = false;
+            bool cancelled = session.Cancel.Cancelled;
+            string adminOutcome = null;
 
             // Anything under %SystemRoot% needs the elevated helper. It is offered
             // once, after the ordinary delete, so the user sees what was already
             // freed before deciding about the UAC prompt.
-            if (adminPaths.Count > 0 && !automatic)
+            if (adminPaths.Count > 0 && !automatic && !cancelled)
             {
                 if (MessageBox.Show(this, string.Format(Lang.T("admin.offer"), adminPaths.Count),
                         AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     if (!ElevatedJob.RunElevated(ElevatedJob.BuildDeleteJob(adminPaths), backupDir))
-                        SetStatus(Lang.T("admin.failed"));
+                        adminOutcome = Lang.T("admin.failed");
                 }
-                else SetStatus(Lang.T("admin.declined"));
+                else adminOutcome = Lang.T("admin.declined");
             }
 
             totalFreedBytes += freed;
             totalFreedFiles += files;
-            totalCleans++;
-            lastCleanTime = DateTime.Now;
+            if (!cancelled || files > 0 || freed > 0)
+            {
+                totalCleans++;
+                lastCleanTime = DateTime.Now;
+            }
             SaveSettings();
 
             string message = failed > 0
                 ? string.Format(Lang.T("clean.doneFailed"), Util.FormatSize(freed), failed)
                 : string.Format(Lang.T("clean.done"), Util.FormatSize(freed), Util.FormatCount(files));
+            if (cancelled) message = Lang.T("common.cancelled") + " " + message;
+            if (adminOutcome != null) message += " " + adminOutcome;
             LogLine(message);
             EndBusy(message);
             if (automatic) Notify(AppName, message);
