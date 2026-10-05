@@ -102,6 +102,23 @@ namespace Cleaner
             using (var mark = AppMark(cx, cy, s * 0.33f))
             using (var b = new SolidBrush(Color.White))
                 g.FillPath(b, mark);
+
+            // A small glint gives the mark a clear cleaning cue without adding
+            // noise to the 16/20 px tray versions of the icon.
+            if (s >= 24f)
+            {
+                float gx = box.X + s * 0.75f, gy = box.Y + s * 0.26f;
+                float arm = s * 0.075f, waist = s * 0.018f;
+                PointF[] glint =
+                {
+                    new PointF(gx, gy - arm), new PointF(gx + waist, gy - waist),
+                    new PointF(gx + arm, gy), new PointF(gx + waist, gy + waist),
+                    new PointF(gx, gy + arm), new PointF(gx - waist, gy + waist),
+                    new PointF(gx - arm, gy), new PointF(gx - waist, gy - waist)
+                };
+                using (var b = new SolidBrush(Color.FromArgb(235, 255, 255, 255)))
+                    g.FillPolygon(b, glint);
+            }
         }
 
         public static Bitmap MarkBitmap(int size)

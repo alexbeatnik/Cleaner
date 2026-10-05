@@ -74,6 +74,18 @@ namespace Cleaner.Tests
 
     static class UninstallCommandTests
     {
+        public static void TestRegistryUninstallNeedsTwoMissingTargets()
+        {
+            string gone = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                "CleanerMissing-" + Guid.NewGuid().ToString("N"));
+            Assert.False(MainForm.IsStaleUninstallEntry(null, gone + ".exe"),
+                "an absent installation path is not evidence");
+            Assert.False(MainForm.IsStaleUninstallEntry(gone, null),
+                "an absent uninstall command is not evidence");
+            Assert.True(MainForm.IsStaleUninstallEntry(gone, gone + ".exe"),
+                "both explicit targets are gone");
+        }
+
         public static void TestQuotedCommandSplits()
         {
             string exe, args;

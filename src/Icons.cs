@@ -18,26 +18,11 @@ namespace Cleaner
             return pen;
         }
 
-        // Broom — the cleaner page and the Clean action
+        // The clean action uses the same solid mark as the app icon. The old
+        // stroked broom collapsed into disconnected lines at tile size.
         public static void Broom(Graphics g, RectangleF r, Color c)
         {
-            float w = r.Width, h = r.Height;
-            using (var pen = P(c, r, 0.1f))
-            {
-                // handle, running from top-right down to the head
-                g.DrawLine(pen, r.X + w * 0.80f, r.Y + h * 0.10f, r.X + w * 0.45f, r.Y + h * 0.52f);
-                // head: a trapezoid of bristles
-                using (var p = new GraphicsPath())
-                {
-                    p.AddLine(r.X + w * 0.30f, r.Y + h * 0.52f, r.X + w * 0.62f, r.Y + h * 0.52f);
-                    p.AddLine(r.X + w * 0.62f, r.Y + h * 0.52f, r.X + w * 0.78f, r.Y + h * 0.92f);
-                    p.AddLine(r.X + w * 0.78f, r.Y + h * 0.92f, r.X + w * 0.14f, r.Y + h * 0.92f);
-                    p.CloseFigure();
-                    g.DrawPath(pen, p);
-                }
-                g.DrawLine(pen, r.X + w * 0.35f, r.Y + h * 0.68f, r.X + w * 0.30f, r.Y + h * 0.92f);
-                g.DrawLine(pen, r.X + w * 0.57f, r.Y + h * 0.68f, r.X + w * 0.62f, r.Y + h * 0.92f);
-            }
+            Mark(g, r, c);
         }
 
         // The app mark as a glyph. Deliberately the very same path the icon

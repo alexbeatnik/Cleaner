@@ -14,6 +14,7 @@ namespace Cleaner
         public Color Back, Hover, TextColor;
         public IconDraw Icon;   // optional glyph; null = text-only button
         public bool CardStyle;  // icon centered above the text, for the big dashboard actions
+        public bool HeroStyle;  // horizontal layout for the primary dashboard action
         public string SubText;  // muted one-line caption under the label (card-style tiles only)
         bool over, down;
         DialogResult dialogResult = DialogResult.None;
@@ -23,7 +24,9 @@ namespace Cleaner
             Text = text;
             Back = back; Hover = hover; TextColor = fore;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
-                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable, true);
+            TabStop = true;
             Height = 36;
             Width = 150;
             Font = Theme.UiBold(9f);
@@ -52,6 +55,20 @@ namespace Cleaner
 
         protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }
         protected override void OnTextChanged(EventArgs e) { base.OnTextChanged(e); Invalidate(); }
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                PerformClick();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -74,6 +91,13 @@ namespace Cleaner
                 if (!edge.IsEmpty)
                     using (var pen = new Pen(edge)) g.DrawPath(pen, path);
             }
+            if (Focused && Enabled)
+            {
+                var focusBox = new RectangleF(3.5f, 3.5f, Width - 7, Height - 7);
+                using (var path = Theme.Round(focusBox, Math.Max(2f, radius - 2f)))
+                using (var pen = new Pen(Theme.AccentHot, 1f))
+                    g.DrawPath(pen, path);
+            }
 
             Color fg = Enabled ? TextColor : Theme.Muted;
             // NoPrefix: button labels may contain a literal "&"
@@ -81,6 +105,19 @@ namespace Cleaner
             if (Icon == null)
             {
                 Theme.DrawLabelCentered(g, Text, Font, ClientRectangle, fg);
+                return;
+            }
+            if (HeroStyle)
+            {
+                Icon(g, new RectangleF(24, (Height - 58) / 2f, 58, 58), fg);
+                using (var titleFont = Theme.UiBold(12f))
+                    Theme.DrawLabelLeft(g, Text, titleFont,
+                        new Rectangle(98, 55, Width - 114, 32), fg);
+                Color subFg = Enabled ? Color.FromArgb(226, 255, 255, 255) : Theme.Disabled;
+                using (var subFont = Theme.Ui(8.5f))
+                    TextRenderer.DrawText(g, SubText ?? "", subFont,
+                        new Rectangle(98, 88, Width - 114, 55), subFg,
+                        TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.WordBreak | NoPre);
                 return;
             }
             if (CardStyle)
@@ -140,8 +177,10 @@ namespace Cleaner
         public Toggle(string text)
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
-                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable, true);
             Height = 26;
+            TabStop = true;
             Cursor = Cursors.Hand;
             Text = text;
             anim.Interval = 15;
@@ -178,25 +217,38 @@ namespace Cleaner
         // the form's font arrives after the constructor runs — re-measure width then
         protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); FitWidth(); }
         protected override void OnParentChanged(EventArgs e) { base.OnParentChanged(e); FitWidth(); }
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space)
+            {
+                Checked = !Checked;
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.Clear(BackColor);
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.SmoothingMode = SmoothingMode.None;
             const int tw = 40, th = 20; // track
             int ty = (Height - th) / 2;
-            var track = new Rectangle(0, ty, tw - 1, th - 1);
-            using (var b = new SolidBrush(isOn ? Theme.Accent : Theme.Subtle))
-                g.FillRectangle(b, track);
-            using (var p = new Pen(isOn ? Theme.AccentHot : Theme.CardLine))
-                g.DrawRectangle(p, track);
-            // A square block, not a knob: this switch is a lit cell that slides,
-            // the way a console would draw it
+            var track = new RectangleF(0.5f, ty + 0.5f, tw - 1, th - 1);
+            using (var path = Theme.Round(track, (th - 2) / 2f))
+            {
+                using (var b = new SolidBrush(isOn ? Theme.Accent : Theme.Subtle))
+                    g.FillPath(b, path);
+                using (var p = new Pen(Focused ? Theme.AccentHot : Theme.CardLine))
+                    g.DrawPath(p, path);
+            }
             float kx = 3 + knob * (tw - th); // ranges 3..23
             using (var b = new SolidBrush(isOn ? Theme.OnAccent : Theme.Muted))
-                g.FillRectangle(b, kx, ty + 4, th - 8, th - 8);
+                g.FillEllipse(b, kx, ty + 3, th - 6, th - 6);
             TextRenderer.DrawText(g, Text, Font, new Rectangle(tw + 10, 0, Width - tw - 10, Height),
                 Theme.Text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         }
@@ -426,7 +478,7 @@ namespace Cleaner
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
                 | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             BackColor = Theme.Card;
-            Height = 46;
+            Height = 64;
         }
 
         // Assigning the fields directly would leave the bar showing the old
@@ -447,36 +499,39 @@ namespace Cleaner
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.None;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             Theme.Surface(this, g, BackColor);
             double used = Total > 0 ? (double)(Total - Free) / Total : 0;
             // A nearly full disk is the one thing this app exists to fix — colour it
             Color c = used > 0.92 ? Theme.Danger : used > 0.82 ? Theme.Warn : Theme.Accent;
 
-            using (var f = Theme.UiBold(9.5f))
+            using (var f = Theme.UiBold(10f))
                 TextRenderer.DrawText(g, Letter + (string.IsNullOrEmpty(Label) ? "" : "  " + Label), f,
-                    new Rectangle(0, 2, Width - 270, 18), Theme.Text,
+                    new Rectangle(0, 2, Width, 22), Theme.Text,
                     TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
             // The percentage and the decimal on the free figure are what make a
             // clean visible here. Util.FormatSize drops to whole units past 100,
             // so on a 953 GB disk a 3 GB clean moved "281 GB" by nothing anyone
             // would notice and the 40-cell meter needs 24 GB to light one cell —
             // the app looked like it had not freed a byte.
-            string readout = Util.FormatPercent(used) + " " + Lang.T("drive.used") + " · "
-                + Util.FormatSizeFine(Free) + " " + Lang.T("drive.freeOf") + " " + Util.FormatSize(Total);
-            using (var f = Theme.Ui(8.5f))
-                TextRenderer.DrawText(g, readout, f,
-                    new Rectangle(Width - 270, 3, 270, 18), Theme.Muted,
+            string freeText = Util.FormatSizeFine(Free) + " " + Lang.T("drive.freeOf")
+                + " " + Util.FormatSize(Total);
+            using (var f = Theme.Ui(8.75f))
+                TextRenderer.DrawText(g, freeText, f,
+                    new Rectangle(0, 26, Width - 95, 18), Theme.Muted,
+                    TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            using (var f = Theme.UiBold(8.75f))
+                TextRenderer.DrawText(g, Util.FormatPercent(used) + " " + Lang.T("drive.used"), f,
+                    new Rectangle(Width - 105, 26, 105, 18), c,
                     TextFormatFlags.Right | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
 
-            // A cell meter rather than a bar: forty segments, lit up to the used
-            // fraction, the way a console reports a tank
-            const int cells = 40;
-            float cw = Width / (float)cells;
-            int lit = (int)Math.Round(used * cells);
-            for (int i = 0; i < cells; i++)
-                using (var b = new SolidBrush(i < lit ? c : Theme.Subtle))
-                    g.FillRectangle(b, i * cw, 26, Math.Max(1f, cw - 1.5f), 8);
+            var track = new RectangleF(0, 50, Width - 2, 9);
+            using (var path = Theme.Round(track, 4f))
+            using (var b = new SolidBrush(Theme.Subtle)) g.FillPath(b, path);
+            float fillWidth = (float)Math.Max(0, Math.Min(track.Width, track.Width * used));
+            if (fillWidth > 1)
+                using (var path = Theme.Round(new RectangleF(track.X, track.Y, fillWidth, track.Height), 4f))
+                using (var b = new SolidBrush(c)) g.FillPath(b, path);
         }
     }
 
@@ -518,7 +573,7 @@ namespace Cleaner
             // it: the tilt puts the handle tip and the head corner well outside
             // the mark's nominal half-height, so a watermark scaled to fill the
             // card comes out with its handle sheared off by the top edge.
-            float wr = Height * 0.32f;
+            float wr = Height * 0.23f;
             using (var mark = Brand.AppMark(slab.Right - wr * 1.7f, slab.Y + Height * 0.5f, wr))
             using (var b = new SolidBrush(Color.FromArgb(20, Theme.Accent)))
                 g.FillPath(b, mark);
@@ -535,6 +590,7 @@ namespace Cleaner
         public string[] Captions = new string[0];
         public string[] Values = new string[0];
         public Color[] ValueColors; // optional per-value override (Color.Empty = default text)
+        public int RightReserve; // room for the search box or folder picker
 
         public StatStrip()
         {
@@ -552,19 +608,29 @@ namespace Cleaner
             using (var capF = Theme.UiBold(8f))
             using (var valF = Theme.UiBold(13.5f))
             {
-                float x = 20;
+                int count = Captions.Length;
+                if (count == 0) return;
+                int usable = Math.Max(0, Width - 40 - RightReserve);
+                int cellWidth = usable / count;
                 for (int i = 0; i < Captions.Length; i++)
                 {
                     string cap = Captions[i].ToUpperInvariant();
                     string val = i < Values.Length ? Values[i] : "";
-                    int cell = Math.Max(Theme.MeasureLabel(cap, capF),
-                                        TextRenderer.MeasureText(g, val, valF).Width);
-                    Theme.DrawLabel(g, cap, capF, new Point((int)x, 11), Theme.Muted);
+                    int x = 20 + i * cellWidth;
+                    int textWidth = Math.Max(0, cellWidth - 16);
+                    TextRenderer.DrawText(g, cap, capF,
+                        new Rectangle(x, 10, textWidth, 17), Theme.Muted,
+                        TextFormatFlags.Left | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                     Color vc = ValueColors != null && i < ValueColors.Length && !ValueColors[i].IsEmpty
                         ? ValueColors[i] : Theme.Text;
-                    TextRenderer.DrawText(g, val, valF, new Rectangle((int)x, 28, cell + 4, 28),
-                        vc, TextFormatFlags.Left | TextFormatFlags.NoPadding);
-                    x += cell + 28;
+                    TextRenderer.DrawText(g, val, valF,
+                        new Rectangle(x, 29, textWidth, 27), vc,
+                        TextFormatFlags.Left | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    if (i > 0)
+                        using (var pen = new Pen(Theme.CardLine))
+                            g.DrawLine(pen, x - 12, 16, x - 12, Height - 20);
                 }
             }
         }

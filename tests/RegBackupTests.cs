@@ -49,6 +49,21 @@ namespace Cleaner.Tests
                 "lowercase, two digits, comma separated");
         }
 
+        public static void TestUnknownValueKindCannotPretendToBeBackedUp()
+        {
+            Assert.Equal("\"Raw\"=hex(0):01,02",
+                RegBackup.FormatValue("Raw", new byte[] { 1, 2 }, RegistryValueKind.None),
+                "REG_NONE needs its own type code");
+            bool refused = false;
+            try { RegBackup.FormatValue("Raw", "unknown", RegistryValueKind.Unknown); }
+            catch (NotSupportedException) { refused = true; }
+            Assert.True(refused, "an unsupported kind must stop the backup");
+            refused = false;
+            try { RegBackup.FormatValue("Raw", "not bytes", RegistryValueKind.Binary); }
+            catch (NotSupportedException) { refused = true; }
+            Assert.True(refused, "an invalid value type cannot turn into an empty backup");
+        }
+
         // REG_EXPAND_SZ is stored as hex(2) holding UTF-16LE plus a terminator —
         // regedit rejects it written as a plain string.
         public static void TestExpandStringIsHex2WithTerminator()
@@ -100,7 +115,8 @@ namespace Cleaner.Tests
         public static void TestExportMissingKeyWritesNothing()
         {
             var sb = new StringBuilder();
-            RegBackup.ExportKey(sb, "HKCU", @"Software\CleanerNoSuchKeyAnywhere", true);
+            Assert.False(RegBackup.ExportKey(sb, "HKCU", @"Software\CleanerNoSuchKeyAnywhere", true),
+                "missing keys do not count as a completed backup");
             Assert.Equal("", sb.ToString(), "a key that is already gone contributes no backup lines");
         }
     }

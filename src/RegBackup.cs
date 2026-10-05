@@ -72,75 +72,75 @@ namespace Cleaner
                 case RegistryValueKind.ExpandString:
                     return left + "=hex(2):" + HexBytes(Utf16WithNull(Convert.ToString(value, CultureInfo.InvariantCulture)));
                 case RegistryValueKind.MultiString:
-                    return left + "=hex(7):" + HexBytes(MultiString(value as string[]));
+                    if (!(value is string[])) throw new NotSupportedException("Invalid REG_MULTI_SZ value");
+                    return left + "=hex(7):" + HexBytes(MultiString((string[])value));
                 case RegistryValueKind.DWord:
                     return left + "=dword:" +
                         ((uint)Convert.ToInt64(value, CultureInfo.InvariantCulture)).ToString("x8", CultureInfo.InvariantCulture);
                 case RegistryValueKind.QWord:
                     return left + "=hex(b):" + HexBytes(BitConverter.GetBytes(Convert.ToInt64(value, CultureInfo.InvariantCulture)));
                 case RegistryValueKind.Binary:
-                    return left + "=hex:" + HexBytes(value as byte[] ?? new byte[0]);
+                    if (!(value is byte[])) throw new NotSupportedException("Invalid REG_BINARY value");
+                    return left + "=hex:" + HexBytes((byte[])value);
+                case RegistryValueKind.None:
+                    if (!(value is byte[])) throw new NotSupportedException("Invalid REG_NONE value");
+                    return left + "=hex(0):" + HexBytes((byte[])value);
                 default:
-                    return left + "=hex:" + HexBytes(Encoding.Unicode.GetBytes(Convert.ToString(value, CultureInfo.InvariantCulture) ?? ""));
+                    throw new NotSupportedException("Registry value kind cannot be backed up: " + kind);
             }
         }
 
-        // Exports one key (and, when recursive, everything under it) in .reg form.
-        // Unreadable subkeys are skipped: a backup missing a key nobody could read
-        // is still a valid backup of everything that will actually be deleted.
-        public static void ExportKey(StringBuilder sb, string hiveShort, string subkey, bool recursive)
+        // A whole-key delete must never proceed with a partial backup. Return
+        // false if even one value or nested key cannot be read or represented.
+        public static bool ExportKey(StringBuilder sb, string hiveShort, string subkey, bool recursive)
         {
             RegistryKey hive = ElevatedJob.HiveFor(hiveShort);
-            if (hive == null) return;
+            if (hive == null) return false;
             RegistryKey key = null;
             try { key = hive.OpenSubKey(subkey, false); }
-            catch { }
-            if (key == null) return;
+            catch { return false; }
+            if (key == null) return false;
             using (key)
             {
-                sb.AppendLine();
-                sb.AppendLine("[" + HiveDisplayName(hiveShort) + "\\" + subkey + "]");
-                string[] names;
-                try { names = key.GetValueNames(); }
-                catch { names = new string[0]; }
-                foreach (string name in names)
+                try
                 {
-                    try
+                    sb.AppendLine();
+                    sb.AppendLine("[" + HiveDisplayName(hiveShort) + "\\" + subkey + "]");
+                    foreach (string name in key.GetValueNames())
                     {
                         object v = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-                        if (v == null) continue;
+                        if (v == null) return false;
                         sb.AppendLine(FormatValue(name, v, key.GetValueKind(name)));
                     }
-                    catch { }
+                    if (recursive)
+                        foreach (string sub in key.GetSubKeyNames())
+                            if (!ExportKey(sb, hiveShort, subkey + "\\" + sub, true)) return false;
+                    return true;
                 }
-                if (!recursive) return;
-                string[] subs;
-                try { subs = key.GetSubKeyNames(); }
-                catch { subs = new string[0]; }
-                foreach (string sub in subs)
-                    ExportKey(sb, hiveShort, subkey + "\\" + sub, true);
+                catch { return false; }
             }
         }
 
         // Exports a single value as a one-key file — used when a fix removes one
         // value out of a key that must otherwise stay untouched.
-        public static void ExportValue(StringBuilder sb, string hiveShort, string subkey, string valueName)
+        public static bool ExportValue(StringBuilder sb, string hiveShort, string subkey, string valueName)
         {
             RegistryKey hive = ElevatedJob.HiveFor(hiveShort);
-            if (hive == null) return;
+            if (hive == null) return false;
             try
             {
                 using (RegistryKey key = hive.OpenSubKey(subkey, false))
                 {
-                    if (key == null) return;
+                    if (key == null) return false;
                     object v = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-                    if (v == null) return;
+                    if (v == null) return false;
                     sb.AppendLine();
                     sb.AppendLine("[" + HiveDisplayName(hiveShort) + "\\" + subkey + "]");
                     sb.AppendLine(FormatValue(valueName, v, key.GetValueKind(valueName)));
+                    return true;
                 }
             }
-            catch { }
+            catch { return false; }
         }
     }
 }

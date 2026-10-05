@@ -12,5 +12,5 @@ using System.Reflection;
 [assembly: AssemblyDescription("Disk cleanup and system tune-up for Windows: junk files, registry, startup, installed apps, large files and duplicates.")]
 [assembly: AssemblyCompany("Oleksii Poliakov")]
 [assembly: AssemblyCopyright("Copyright 2026 Oleksii Poliakov — Apache License 2.0")]
-[assembly: AssemblyVersion("0.3.0.0")]
-[assembly: AssemblyFileVersion("0.3.0.0")]
+[assembly: AssemblyVersion("0.4.0.0")]
+[assembly: AssemblyFileVersion("0.4.0.0")]
